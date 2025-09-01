@@ -1,0 +1,6 @@
+# AutoFix Python Engine - Pure Python Dependencies
+# No external dependencies required - uses only Python standard library
+
+# Optional packages for testing the fixer itself
+# pytest>=7.0.0  # For running tests
+# coverage>=6.0  # For test coverage
