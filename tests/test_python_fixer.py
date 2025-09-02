@@ -15,8 +15,8 @@ from unittest.mock import patch, MagicMock
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from autofix.python_fixer import PythonFixer
-from autofix.error_parser import ParsedError
+from python_fixer import PythonFixer
+from error_parser import ParsedError
 
 
 class TestPythonFixer(unittest.TestCase):
@@ -47,10 +47,10 @@ class TestPythonFixer(unittest.TestCase):
     
     def test_suggest_library_import(self):
         """Test library import suggestions"""
-        self.assertEqual(self.fixer._suggest_library_import("sleep"), "from time import sleep")
-        self.assertEqual(self.fixer._suggest_library_import("json"), "import json")
-        self.assertEqual(self.fixer._suggest_library_import("sqrt"), "from math import sqrt")
-        self.assertEqual(self.fixer._suggest_library_import("isfile"), "from os.path import isfile")
+        self.assertEqual(self.fixer._suggest_library_import("sleep"), ["from time import sleep"])
+        self.assertEqual(self.fixer._suggest_library_import("json"), ["import json"])
+        self.assertEqual(self.fixer._suggest_library_import("sqrt"), ["from math import sqrt"])
+        self.assertEqual(self.fixer._suggest_library_import("isfile"), ["from os.path import isfile"])
         self.assertIsNone(self.fixer._suggest_library_import("unknown_function"))
     
     def test_analyze_function_usage(self):
@@ -183,17 +183,17 @@ def main():
         """Test fixing ModuleNotFoundError"""
         error = ParsedError(
             error_type="ModuleNotFoundError",
-            error_message="No module named 'test_module'",
+            error_message="No module named 'custom_utils'",
             file_path=self.test_script,
-            missing_module="test_module"
+            missing_module="custom_utils"
         )
         
         # Should create local file since it's not a known pip package
-        success = self.fixer._fix_module_not_found(error)
+        success = self.fixer._fix_module_not_found_error(error)
         self.assertTrue(success)
         
         # Check that file was created
-        module_file = os.path.join(self.temp_dir, "test_module.py")
+        module_file = os.path.join(self.temp_dir, "custom_utils.py")
         self.assertTrue(os.path.exists(module_file))
     
     def test_fix_name_error_common_function(self):

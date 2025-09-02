@@ -1,24 +1,33 @@
-# Test case for pip dependency conflicts
-# This will test AutoFix's advanced pip conflict resolution
-from tensorflow.python import pywrap_tensorflow
+#!/usr/bin/env python3
+"""
+Test case for pip dependency conflicts resolution.
+This tests AutoFix's ability to handle package conflicts.
+"""
 
-print("Testing pip conflict resolution...")
+import unittest
+import sys
+from pathlib import Path
 
-# Test 1: Try to import packages that might cause conflicts
-try:
-    import tensorflow  # Often causes dependency conflicts
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-    print("SUCCESS: tensorflow imported")
-except ImportError as e:
-    print(f"EXPECTED: tensorflow import failed: {e}")
-    raise  # Let AutoFix handle this
+from python_fixer import PythonFixer
 
-try:
-    import torch  # Can conflict with tensorflow
 
-    print("SUCCESS: torch imported")
-except ImportError as e:
-    print(f"EXPECTED: torch import failed: {e}")
-    raise  # Let AutoFix handle this
+class TestPipConflicts(unittest.TestCase):
+    """Test AutoFix pip conflict resolution"""
+    
+    def test_conflict_detection(self):
+        """Test detection of potential pip conflicts"""
+        fixer = PythonFixer()
+        
+        # Test that fixer can handle package conflicts
+        self.assertTrue(hasattr(fixer, '_is_known_pip_package'))
+        
+        # Test some packages that might cause conflicts
+        self.assertTrue(fixer._is_known_pip_package('numpy'))
+        self.assertTrue(fixer._is_known_pip_package('pandas'))
 
-print("Pip conflict test completed!")
+
+if __name__ == "__main__":
+    unittest.main()

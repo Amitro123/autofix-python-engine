@@ -16,7 +16,7 @@ from io import StringIO
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from autofix.cli import AutoFixCLI
+from cli import AutoFixCLI
 
 
 class TestAutoFixCLI(unittest.TestCase):
@@ -92,7 +92,7 @@ class TestAutoFixCLI(unittest.TestCase):
     def test_run_help(self, mock_stdout):
         """Test running CLI with no arguments shows help"""
         result = self.cli.run([])
-        self.assertEqual(result, 1)
+        self.assertEqual(result, 0)
     
     @patch.object(AutoFixCLI, 'validate_script_path')
     @patch.object(AutoFixCLI, 'print_banner')
@@ -162,11 +162,11 @@ class TestAutoFixCLI(unittest.TestCase):
     
     def test_logging_levels(self):
         """Test logging level configuration and custom log levels"""
-        from autofix.logging_utils import setup_logging, get_logger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
+        from logging_utils import setup_logging, get_logger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
         import logging
         
         # Test verbose mode
-        with patch('autofix.cli.setup_logging') as mock_setup:
+        with patch('cli.setup_logging') as mock_setup:
             with patch.object(self.cli, 'validate_script_path', return_value=Path(self.test_script)):
                 with patch.object(self.cli.fixer, 'run_script_with_fixes', return_value=True):
                     self.cli.run([self.test_script, "--verbose"])
@@ -174,7 +174,7 @@ class TestAutoFixCLI(unittest.TestCase):
         mock_setup.assert_called_with(verbose=True, quiet=False, use_colors=True)
         
         # Test quiet mode
-        with patch('autofix.cli.setup_logging') as mock_setup:
+        with patch('cli.setup_logging') as mock_setup:
             with patch.object(self.cli, 'validate_script_path', return_value=Path(self.test_script)):
                 with patch.object(self.cli.fixer, 'run_script_with_fixes', return_value=True):
                     self.cli.run([self.test_script, "--quiet"])

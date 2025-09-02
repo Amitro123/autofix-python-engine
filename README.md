@@ -23,8 +23,9 @@ Requires Python >= 3.9
 
 ```bash
 # Clone and use directly
-cd autofix/
-python -m cli script.py
+git clone <repository-url>
+cd autofix-python-engine/
+python cli.py script.py
 ```
 
 ## Usage
@@ -33,25 +34,26 @@ python -m cli script.py
 
 ```bash
 # Basic usage
-python -m autofix.cli script.py
+python cli.py script.py
 
 # Verbose output
-python -m autofix.cli --verbose script.py
+python cli.py --verbose script.py
 
 # Dry run (show what would be fixed)
-python -m autofix.cli --dry-run script.py
+python cli.py --dry-run script.py
 
 # Quiet mode
-python -m autofix.cli --quiet script.py
+python cli.py --quiet script.py
 
 # Limit retry attempts
-python -m autofix.cli --max-retries 5 script.py
+python cli.py --max-retries 5 script.py
 ```
 
 ### Programmatic Usage
 
 ```python
-from autofix import PythonFixer, ErrorParser
+from python_fixer import PythonFixer
+from error_parser import ErrorParser
 
 # Create fixer instance
 fixer = PythonFixer()
@@ -69,7 +71,9 @@ parsed_error = parser.parse_exception(exception, "script.py")
 - **`cli.py`**: Command-line interface and argument parsing
 - **`python_fixer.py`**: Core error fixing logic and script execution
 - **`error_parser.py`**: Structured error parsing and version detection
-- **`logging_utils.py`**: Centralized logging configuration with colored output
+- **`logging_utils.py`**: Advanced logging with custom levels (SUCCESS/ATTEMPT), colors, JSON formatting
+- **`metrics.py`**: Performance tracking, statistics, and session reporting
+- **`helper_functions.py`**: Utility functions for common operations
 - **`tests/`**: Unit tests covering error detection, fixing, and CLI behaviors
 
 ## Error Types Supported
@@ -84,10 +88,13 @@ parsed_error = parser.parse_exception(exception, "script.py")
 
 ```bash
 # Run all tests
-python -m pytest autofix/tests/ -v
+python -m unittest discover tests -v
 
 # Run specific test module
-python -m pytest autofix/tests/test_python_fixer.py -v
+python tests/test_logging_utils.py
+
+# Run logging demo
+python tests/test_logging_demo.py
 ```
 
 ## Example
@@ -103,13 +110,50 @@ if __name__ == "__main__":
 ```
 
 ```bash
-$ python -m autofix.cli demo_script.py
-[AutoFix] Running: demo_script.py
-[AutoFix] Error detected: NameError: name 'sleep' is not defined
-[AutoFix] Adding import: from time import sleep
-[AutoFix] Error fixed, retrying script execution...
-[AutoFix] Script executed successfully!
+$ python cli.py demo_script.py
+13:45:01 - autofix.cli - INFO - Starting AutoFix for: demo_script.py
+13:45:01 - autofix.python_fixer - ATTEMPT - Attempting to run script: demo_script.py
+13:45:01 - autofix.error_parser - INFO - Parsed NameError: name 'sleep' is not defined
+13:45:01 - autofix.python_fixer - ATTEMPT - Adding import: from time import sleep
+13:45:01 - autofix.python_fixer - SUCCESS - Import added successfully
+13:45:01 - autofix.python_fixer - SUCCESS - Script executed successfully!
 Done!
+```
+
+## Advanced Features
+
+### Custom Logging Levels
+- **SUCCESS**: Bright green for successful operations
+- **ATTEMPT**: Yellow for fix attempts
+- **JSON formatting**: Structured logging for analysis tools
+
+```python
+from logging_utils import get_logger
+from metrics import log_duration, record_success
+
+logger = get_logger('autofix')
+logger.success("Package installed successfully!")
+logger.attempt("Trying to fix import error...")
+
+# Time operations
+with log_duration(logger, "Fixing imports"):
+    run_fix()
+```
+
+### Performance Metrics
+- **Operation timing**: Track how long fixes take
+- **Success/failure rates**: Monitor fix effectiveness
+- **Session reporting**: Comprehensive statistics
+
+```python
+from metrics import get_metrics, record_success
+
+# Record outcomes
+record_success("import_fix", duration=0.5)
+record_failure("package_install", error_type="ImportError")
+
+# Generate report
+get_metrics().generate_session_report(logger)
 ```
 
 ## Limitations

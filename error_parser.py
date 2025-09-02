@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from .logging_utils import get_logger
+from logging_utils import get_logger
 
 @dataclass
 class ParsedError:
@@ -108,15 +108,17 @@ class ErrorParser:
     def _parse_module_not_found(self, exception: ModuleNotFoundError, script_path: str) -> ParsedError:
         """Parse ModuleNotFoundError"""
         missing_module = exception.name
-        fixes = [{"fix": f"pip install {missing_module}", "confidence": 0.8},
-                 {"fix": f"import {missing_module}", "confidence": 0.6}]
+        suggested_fix = f"pip install {missing_module}"
+
+        context = self._extract_context(script_path, getattr(exception, 'lineno', None))
 
         return ParsedError(
             error_type="ModuleNotFoundError",
             error_message=str(exception),
             file_path=script_path,
             missing_module=missing_module,
-            suggested_fixes=fixes,
+            suggested_fix=suggested_fix,
+            confidence=0.8,
             context_lines=context
         )
     

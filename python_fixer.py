@@ -21,8 +21,8 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from .error_parser import ErrorParser, ParsedError
-from .logging_utils import get_logger
+from error_parser import ErrorParser, ParsedError
+from logging_utils import get_logger
 
 
 class PythonFixer:
@@ -35,7 +35,7 @@ class PythonFixer:
         self.max_recursion_depth = self.config.get('max_retries', 3)
         self.error_parser = ErrorParser()
         self.logger = get_logger("python_fixer")
-        self.dry_run = dry_run
+        self.dry_run = self.config.get('dry_run', False)
             
         # Simple import suggestions (one option per function)
         self.import_suggestions = {

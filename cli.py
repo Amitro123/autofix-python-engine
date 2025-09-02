@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .python_fixer import PythonFixer
-from .logging_utils import setup_logging, get_logger
+from python_fixer import PythonFixer
+from logging_utils import setup_logging, get_logger
 
 
 class AutoFixCLI:
