@@ -21,6 +21,11 @@ wheels/
 *.egg
 MANIFEST
 
+# VS Code Extension
+autofix-vscode/node_modules/
+autofix-vscode/out/
+autofix-vscode/*.vsix
+
 # IDE
 .vscode/
 .idea/
@@ -50,3 +55,18 @@ htmlcov/
 temp_*
 *.tmp
 *.bak
+
+# API Keys and secrets
+config/secrets.json
+*.key
+api_keys.txt
+
+# Reports and outputs
+integration_test_report.json
+bandit_report.json
+stress_test_results.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

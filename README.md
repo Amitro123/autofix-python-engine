@@ -1,184 +1,130 @@
-# 🔧 AutoFix Python Engine
+# AutoFix - Python Error Fixing MVP
 
-A lightweight, pure Python error resolution tool that automatically fixes common development issues without AI dependencies.
+A minimal, clean Python error fixing tool that automatically detects and fixes common Python errors.
 
-## 🎯 Features
+## Features
 
-- **Pure Python Logic** - No AI or external API dependencies
-- **Automatic Package Installation** - Detects and installs missing packages via pip
-- **Module Creation** - Creates missing local modules with basic structure
-- **Import Error Handling** - Fixes invalid imports and missing symbols
-- **Name Error Resolution** - Creates placeholder functions for undefined names
-- **Basic Syntax Fixes** - Handles common syntax errors like missing colons
-- **Test Module Detection** - Recognizes placeholder/test imports and provides guidance
+- **Automatic Error Detection**: Parses Python exceptions into structured error objects
+- **Smart Error Fixing**: Handles common error types:
+  - `ModuleNotFoundError` - Installs missing packages via pip
+  - `ImportError` - Adds missing imports
+  - `NameError` - Creates missing functions or adds imports-placeholder only
+  - `AttributeError` - Basic attribute error detection
+  - `SyntaxError` - Version compatibility detection
+- **CLI Interface**: Simple command-line tool for running scripts with auto-fixes
+- **Logging**: Configurable logging levels (verbose, quiet modes)
+- **Edge Case Handling**: Pip failures, file permissions, Python version issues
 
-## 📦 Installation
+## Installation
+
+No external dependencies required - uses only Python standard library.
+Requires Python >= 3.9
+
 
 ```bash
-# Clone the repository
-git clone https://github.com/Amitro123/autofix-python-engine.git
-cd autofix-python-engine
-
-# No additional dependencies required - uses only Python standard library
+# Clone and use directly
+cd autofix/
+python -m cli script.py
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Command Line
-```bash
-# Fix a Python script
-python autofix_python.py script.py
-
-# Example with a problematic script
-python autofix_python.py test_missing_imports.py
-```
-
-### What It Fixes
-
-**Missing Packages:**
-```python
-import requests  # → pip install requests
-import pandas    # → pip install pandas
-import numpy     # → pip install numpy
-```
-
-**Missing Local Modules:**
-```python
-import my_utils  # → creates my_utils.py with basic structure
-```
-
-**Invalid Imports:**
-```python
-from os import nonexistent_function  # → comments out invalid import
-```
-
-**Undefined Functions:**
-```python
-result = process_data(x)  # → creates placeholder process_data function
-```
-
-**Basic Syntax Errors:**
-```python
-if condition  # → if condition:
-def my_func() # → def my_func():
-```
-
-## 📋 Supported Error Types
-
-| Error Type | Description | Fix Strategy |
-|------------|-------------|--------------|
-| `ModuleNotFoundError` | Missing packages/modules | Install via pip or create local module |
-| `ImportError` | Invalid imports | Comment out problematic imports |
-| `NameError` | Undefined variables/functions | Create placeholder implementations |
-| `SyntaxError` | Basic syntax issues | Add missing colons, fix formatting |
-
-## 🔍 Examples
-
-### Example 1: Missing Package
-```python
-# script.py
-import requests
-response = requests.get("https://api.github.com")
-print(response.json())
-```
 
 ```bash
-$ python autofix_python.py script.py
-🔧 AutoFix Python Engine - Pure Python Error Resolution
-============================================================
-2025-09-01 20:06:15 - autofix-python - INFO - Fixing script: script.py
-2025-09-01 20:06:15 - autofix-python - INFO - Installing package: requests
-2025-09-01 20:06:18 - autofix-python - INFO - Successfully installed requests
-✅ Script fixed successfully!
+# Basic usage
+python -m autofix.cli script.py
+
+# Verbose output
+python -m autofix.cli --verbose script.py
+
+# Dry run (show what would be fixed)
+python -m autofix.cli --dry-run script.py
+
+# Quiet mode
+python -m autofix.cli --quiet script.py
+
+# Limit retry attempts
+python -m autofix.cli --max-retries 5 script.py
 ```
 
-### Example 2: Missing Local Module
+### Programmatic Usage
+
 ```python
-# app.py
-from utils import helper_function
-result = helper_function("test")
-print(result)
+from autofix import PythonFixer, ErrorParser
+
+# Create fixer instance
+fixer = PythonFixer()
+
+# Run script with automatic fixes
+success = fixer.run_script_with_fixes("my_script.py")
+
+# Parse errors manually
+parser = ErrorParser()
+parsed_error = parser.parse_exception(exception, "script.py")
+```
+
+## Architecture
+
+- **`cli.py`**: Command-line interface and argument parsing
+- **`python_fixer.py`**: Core error fixing logic and script execution
+- **`error_parser.py`**: Structured error parsing and version detection
+- **`logging_utils.py`**: Centralized logging configuration with colored output
+- **`tests/`**: Unit tests covering error detection, fixing, and CLI behaviors
+
+## Error Types Supported
+
+1. **ModuleNotFoundError**: Automatically installs missing packages
+2. **ImportError**: Adds missing import statements
+3. **NameError**: Creates placeholder functions or adds imports
+4. **AttributeError**: Basic detection and logging
+5. **SyntaxError**: Version compatibility warnings
+
+## Testing
+
+```bash
+# Run all tests
+python -m pytest autofix/tests/ -v
+
+# Run specific test module
+python -m pytest autofix/tests/test_python_fixer.py -v
+```
+
+## Example
+
+```python
+# demo_script.py with missing import
+def main():
+    sleep(1)  # NameError: name 'sleep' is not defined
+    print("Done!")
+
+if __name__ == "__main__":
+    main()
 ```
 
 ```bash
-$ python autofix_python.py app.py
-🔧 AutoFix Python Engine - Pure Python Error Resolution
-============================================================
-2025-09-01 20:06:20 - autofix-python - INFO - Created local module: utils.py
-2025-09-01 20:06:20 - autofix-python - INFO - Created placeholder function: helper_function
-✅ Script fixed successfully!
+$ python -m autofix.cli demo_script.py
+[AutoFix] Running: demo_script.py
+[AutoFix] Error detected: NameError: name 'sleep' is not defined
+[AutoFix] Adding import: from time import sleep
+[AutoFix] Error fixed, retrying script execution...
+[AutoFix] Script executed successfully!
+Done!
 ```
 
-### Example 3: Test Module Detection
-```python
-# test.py
-import a_non_existent_module
-print("This won't run")
-```
+## Limitations
 
-```bash
-$ python autofix_python.py test.py
-🔧 AutoFix Python Engine - Pure Python Error Resolution
-============================================================
-2025-09-01 20:06:22 - autofix-python - WARNING - Module 'a_non_existent_module' appears to be a test/placeholder
-2025-09-01 20:06:22 - autofix-python - INFO - Recommendations:
-2025-09-01 20:06:22 - autofix-python - INFO -   1. Replace with a real package name
-2025-09-01 20:06:22 - autofix-python - INFO -   2. Install a package: pip install <package-name>
-2025-09-01 20:06:22 - autofix-python - INFO -   3. Create a local module file if intentional
-❌ Could not fix all errors
-```
+- No AI integration (by design for MVP)
+- Python-only error fixing
+- Basic function generation (placeholder implementations)
+- Limited syntax error auto-fixing
+- Fixes are heuristic and may not always be correct
 
-## 🛠️ Known Package Mappings
+## Future Enhancements
 
-The engine includes mappings for common packages:
-
-```python
-{
-    'cv2': 'opencv-python',
-    'PIL': 'Pillow', 
-    'sklearn': 'scikit-learn',
-    'yaml': 'PyYAML',
-    'bs4': 'beautifulsoup4',
-    # ... and many more
-}
-```
-
-## 🔧 Configuration
-
-The engine works out of the box with sensible defaults:
-- **Max retries**: 3 attempts per script
-- **Timeout**: 30 seconds per script execution
-- **Package timeout**: 60 seconds per pip install
-
-## 🎯 Design Philosophy
-
-- **Lightweight**: Single file, no external dependencies
-- **Fast**: Pure Python logic without API calls
-- **Safe**: Creates backups and validates changes
-- **Educational**: Provides clear logging of all actions taken
-
-## 🚫 Limitations
-
-- **No AI Analysis**: Uses pattern matching, not intelligent code understanding
-- **Basic Syntax Fixes**: Only handles simple syntax errors
-- **No Complex Logic**: Cannot generate sophisticated implementations
-- **Python Only**: Focused solely on Python error resolution
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
-## 📄 License
-
-MIT License - see LICENSE file for details
-
-## 🔗 Related Projects
-
-- **AutoFix Engine**: Full AI-enhanced multi-language system at [autofix-engine](https://github.com/Amitro123/autofix-engine)
-
----
-
-**AutoFix Python Engine** - Simple, fast, reliable Python error fixing without the complexity.
+- More sophisticated error fixing algorithms
+- Support for additional error types
+- Enhanced function generation
+- Configuration file support
+- Package publishing to PyPI
+- branch strategy: Separate branches for language support (Python, JavaScript, charp)

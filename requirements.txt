@@ -1,6 +1,5 @@
-# AutoFix Python Engine - Pure Python Dependencies
-# No external dependencies required - uses only Python standard library
+# Minimal dependencies for AutoFix Python error fixer
+# No AI dependencies, no multi-language support, no VSCode extension
 
-# Optional packages for testing the fixer itself
-# pytest>=7.0.0  # For running tests
-# coverage>=6.0  # For test coverage
+# Core Python standard library modules are used
+# No external dependencies required for basic functionality
