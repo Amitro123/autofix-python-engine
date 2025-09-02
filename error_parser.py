@@ -25,6 +25,10 @@ class ParsedError:
     missing_attribute: Optional[str] = None
     missing_function: Optional[str] = None
     syntax_details: Optional[Dict[str, Any]] = None
+    suggested_fix: Optional[str] = None
+    confidence: Optional[float] = None
+    context_lines: Optional[List[str]] = None
+
 
 
 class ErrorParser:
@@ -33,11 +37,27 @@ class ErrorParser:
     def __init__(self):
         self.python_version = sys.version_info
         self.logger = get_logger("error_parser")
+        self.error_cache = {}
     
     def parse_exception(self, exception: Exception, script_path: str) -> ParsedError:
-        """Parse an exception object into structured error information"""
+        """Parse an exception object into structured error information with caching"""
+        # Create cache key including script path for context-aware caching
+        cache_key = (type(exception).__name__, str(exception), script_path)
+        
+        if cache_key in self.error_cache:
+            return self.error_cache[cache_key]
+
+        parsed = self._parse_exception_impl(exception, script_path)
+        self.error_cache[cache_key] = parsed
+        return parsed
+    
+    def _parse_exception_impl(self, exception: Exception, script_path: str) -> ParsedError:
+        """Internal implementation of exception parsing"""
         error_type = type(exception).__name__
         error_message = str(exception)
+
+        line_number = self._extract_line_number(exception)
+        context = self._extract_context(script_path, line_number)
         
         if isinstance(exception, ModuleNotFoundError):
             return self._parse_module_not_found(exception, script_path)
@@ -53,22 +73,57 @@ class ErrorParser:
             return ParsedError(
                 error_type=error_type,
                 error_message=error_message,
-                file_path=script_path
+                file_path=script_path,
+                line_number=line_number,
+                context_lines=context
             )
+    
+    def clear_cache(self):
+        """Clear error cache when script files are modified"""
+        self.error_cache.clear()
+    
+    def _extract_line_number(self, exception: Exception) -> Optional[int]:
+        """Extract line number from exception traceback"""
+        import traceback
+        if hasattr(exception, '__traceback__') and exception.__traceback__:
+            tb = exception.__traceback__
+            while tb.tb_next: 
+                tb = tb.tb_next
+            return tb.tb_lineno
+        return None
+
+    def _extract_context(self, script_path: str, line_number: Optional[int]) -> Optional[List[str]]:
+        """Extract context lines around the error"""
+        if not line_number:
+            return None
+        try:
+            lines = Path(script_path).read_text().splitlines()
+            start = max(0, line_number - 2)
+            end = min(len(lines), line_number + 1)
+            return lines[start:end]
+        except Exception:
+            return None   
+
     
     def _parse_module_not_found(self, exception: ModuleNotFoundError, script_path: str) -> ParsedError:
         """Parse ModuleNotFoundError"""
         missing_module = exception.name
+        fixes = [{"fix": f"pip install {missing_module}", "confidence": 0.8},
+                 {"fix": f"import {missing_module}", "confidence": 0.6}]
+
         return ParsedError(
             error_type="ModuleNotFoundError",
             error_message=str(exception),
             file_path=script_path,
-            missing_module=missing_module
+            missing_module=missing_module,
+            suggested_fixes=fixes,
+            context_lines=context
         )
     
     def _parse_import_error(self, exception: ImportError, script_path: str) -> ParsedError:
         """Parse ImportError"""
         error_message = str(exception)
+        fixes: List[Dict[str, Any]] = []
         
         # Extract module name from various ImportError patterns
         missing_module = None
@@ -112,6 +167,8 @@ class ErrorParser:
             file_path=script_path,
             missing_function=missing_function
         )
+    
+
     
     def _parse_attribute_error(self, exception: AttributeError, script_path: str) -> ParsedError:
         """Parse AttributeError"""

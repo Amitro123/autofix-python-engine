@@ -28,32 +28,30 @@ from .logging_utils import get_logger
 class PythonFixer:
     """Core Python error fixing functionality"""
     
-    def __init__(self, max_recursion_depth: int = 3):
-        self.max_recursion_depth = max_recursion_depth
+    def __init__(self, config: dict = None):
+        self.config = config or {}
+        self.auto_install = self.config.get('auto_install', True)
+        self.create_files = self.config.get('create_files', True)
+        self.max_recursion_depth = self.config.get('max_retries', 3)
         self.error_parser = ErrorParser()
         self.logger = get_logger("python_fixer")
-        
-        # Known pip packages for common modules
-        self.known_pip_packages = {
-            "requests", "numpy", "pandas", "matplotlib", "scipy", "sklearn",
-            "tensorflow", "torch", "flask", "django", "fastapi", "sqlalchemy",
-            "psycopg2", "pymongo", "redis", "celery", "pytest", "black",
-            "flake8", "mypy", "pydantic", "click", "typer", "rich", "tqdm",
-            "pillow", "opencv-python", "beautifulsoup4", "lxml", "selenium",
-            "openpyxl", "xlsxwriter", "python-dateutil", "pytz", "arrow",
-            "cryptography", "bcrypt", "jwt", "passlib", "httpx", "aiohttp",
-            "uvicorn", "gunicorn", "streamlit", "dash", "plotly", "seaborn",
-            "statsmodels", "networkx", "sympy", "nltk", "spacy", "transformers"
-        }
-        
-        # Standard library modules and their common imports
-        self.stdlib_modules = {
-            # Time and date
+        self.dry_run = dry_run
+            
+        # Simple import suggestions (one option per function)
+        self.import_suggestions = {
             "sleep": "from time import sleep",
             "time": "import time",
-            "datetime": "from datetime import datetime", 
+            "datetime": "from datetime import datetime",
             "timedelta": "from datetime import timedelta",
             "date": "from datetime import date",
+            "json": "import json",
+            "os": "import os",
+            "sys": "import sys",
+            "random": "import random",
+            "math": "import math",
+            "DataFrame": "import pandas as pd",
+            "array": "import numpy as np",
+            "plt": "import matplotlib.pyplot as plt",
             
             # Collections
             "defaultdict": "from collections import defaultdict",
@@ -70,8 +68,6 @@ class PythonFixer:
             
             # System and process
             "subprocess": "import subprocess",
-            "sys": "import sys",
-            "os": "import os",
             "platform": "import platform",
             
             # Concurrency
@@ -81,7 +77,6 @@ class PythonFixer:
             
             # Data serialization
             "pickle": "import pickle",
-            "json": "import json",
             "csv": "import csv",
             "xml": "import xml",
             
@@ -109,7 +104,6 @@ class PythonFixer:
             "warnings": "import warnings",
             "traceback": "import traceback",
             "copy": "import copy",
-            "random": "import random",
             "re": "import re",
             "string": "import string",
             
@@ -120,8 +114,28 @@ class PythonFixer:
             "fractions": "import fractions",
         }
         
+        # Multiple import suggestions for ambiguous functions
+        self.multi_import_suggestions = {
+            "dump": [
+                "import json  # for json.dump",
+                "import pickle  # for pickle.dump",
+            ],
+            "load": [
+                "import json  # for json.load",
+                "import pickle  # for pickle.load",
+            ],
+            "dumps": [
+                "import json  # for json.dumps",
+                "import pickle  # for pickle.dumps",
+            ],
+            "loads": [
+                "import json  # for json.loads",
+                "import pickle  # for pickle.loads",
+            ],
+        }
+        
         # Common function imports (alias for backward compatibility)
-        self.common_imports = self.stdlib_modules
+        self.common_imports = self.import_suggestions
         
         # Known pip packages for common modules
         self.known_pip_packages = {
@@ -141,6 +155,56 @@ class PythonFixer:
             "sqrt", "sin", "cos", "tan", "log", "exp", "pow", "ceil", "floor", "abs"
         }
     
+    def analyze_potential_fixes(self, script_path: str) -> None:
+        """
+        Analyze a script and identify potential fixes without making changes
+        
+        Args:
+            script_path: Path to the Python script to analyze
+        """
+        try:
+            self.logger.info(f"Analyzing script for potential fixes: {script_path}")
+            
+            # Try to run the script to capture errors
+            import runpy
+            runpy.run_path(script_path, run_name="__main__")
+            self.logger.info("Script runs without errors - no fixes needed")
+            
+        except Exception as e:
+            self.logger.info(f"Found error that would be fixed: {type(e).__name__}: {e}")
+            
+            # Parse the error to show what fix would be applied
+            parsed_error = self.error_parser.parse_exception(e, script_path)
+            
+            if parsed_error.error_type == "ModuleNotFoundError":
+                if parsed_error.missing_module in self.known_pip_packages:
+                    self.logger.info(f"Would install pip package: {parsed_error.missing_module}")
+                else:
+                    package_name = self._resolve_package_name(parsed_error.missing_module)
+                    if package_name and package_name != parsed_error.missing_module:
+                        self.logger.info(f"Would install pip package: {package_name} (for module {parsed_error.missing_module})")
+                    else:
+                        self.logger.info(f"Would create local module file: {parsed_error.missing_module}.py")
+            
+            elif parsed_error.error_type == "NameError":
+                if parsed_error.missing_function in self.common_imports:
+                    import_stmt = self.common_imports[parsed_error.missing_function]
+                    self.logger.info(f"Would add import: {import_stmt}")
+                elif parsed_error.missing_function in self.math_functions:
+                    self.logger.info(f"Would add import: from math import {parsed_error.missing_function}")
+                else:
+                    self.logger.info(f"Would create function: {parsed_error.missing_function}()")
+            
+            elif parsed_error.error_type == "ImportError":
+                if parsed_error.missing_function and parsed_error.missing_module:
+                    self.logger.info(f"Would add import: from {parsed_error.missing_module} import {parsed_error.missing_function}")
+            
+            elif parsed_error.error_type == "SyntaxError":
+                self.logger.info(f"Would attempt to fix syntax error: {parsed_error.error_message}")
+            
+            else:
+                self.logger.info(f"Would attempt to fix {parsed_error.error_type}")
+
     def run_script_with_fixes(self, script_path: str, recursion_depth: int = 0) -> bool:
         """
         Run Python script with automatic error fixing
@@ -160,6 +224,11 @@ class PythonFixer:
             return False
         
         try:
+            # Save original working directory
+            original_cwd = os.getcwd()
+            script_dir = Path(script_path).parent
+            os.chdir(script_dir)
+            
             self.logger.info(f"Running script: {script_path}")
             runpy.run_path(script_path, run_name="__main__")
             self.logger.info("Script executed successfully!")
@@ -174,11 +243,13 @@ class PythonFixer:
             # Attempt to fix the error
             if self.fix_error(parsed_error):
                 self.logger.info("Error fixed, retrying script execution...")
-                self._clear_module_cache()
+                self._clear_module_cache(script_path)
                 return self.run_script_with_fixes(script_path, recursion_depth + 1)
             else:
                 self.logger.error(f"Could not auto-resolve {parsed_error.error_type}")
                 return False
+        finally:
+            os.chdir(original_cwd)
     
     def fix_error(self, error: ParsedError) -> bool:
         """
@@ -407,8 +478,20 @@ def placeholder_function():
             self.logger.error(f"Error creating module file {module_name}: {e}")
             return False
     
+    def _backup_file(self, file_path: str) -> str:
+        """Create backup before modifying file"""
+        backup_path = f"{file_path}.autofix.bak"
+        import shutil
+        shutil.copy2(file_path, backup_path)
+        return backup_path
+    
     def _add_import_to_script(self, import_statement: str, script_path: str) -> bool:
         """Add an import statement to the script"""
+
+        if self.dry_run:
+            self.logger.info(f"[DRY RUN] Would add import: {import_statement}")
+            return True
+        
         try:
             script_file = Path(script_path)
             
@@ -420,6 +503,9 @@ def placeholder_function():
             if not os.access(script_file, os.W_OK):
                 self.logger.error(f"No write permission for file: {script_file}")
                 return False
+            
+            # Create backup before modifying
+            backup_path = self._backup_file(script_path)
             
             self.logger.info(f"Adding import: {import_statement}")
             
@@ -465,6 +551,9 @@ def placeholder_function():
             if not os.access(script_file, os.W_OK):
                 self.logger.error(f"No write permission for file: {script_file}")
                 return False
+            
+            # Create backup before modifying
+            backup_path = self._backup_file(script_path)
             
             content = script_file.read_text(encoding="utf-8")
             
@@ -620,7 +709,7 @@ def {function_name}({param_str}):
             "huggingface_hub": "huggingface-hub",
         }
         
-        return module_to_package.get(module_name, module_name if module_name in self.known_pip_packages else None)
+        return module_to_package.get(module_name)
     
     def _fix_common_syntax_issues(self, file_path: str, error_message: str) -> bool:
         """Fix common syntax issues like missing colons, parentheses, etc."""
@@ -629,6 +718,9 @@ def {function_name}({param_str}):
             content = script_file.read_text(encoding="utf-8")
             lines = content.split('\n')
             modified = False
+            
+            # Create backup before modifying
+            backup_path = self._backup_file(file_path)
             
             # Fix missing colons after if/for/while/def/class statements
             if "expected ':'" in error_message.lower() or ("invalid syntax" in error_message.lower() and ":" in error_message):
@@ -666,6 +758,9 @@ def {function_name}({param_str}):
         try:
             script_file = Path(file_path)
             content = script_file.read_text(encoding="utf-8")
+            
+            # Create backup before modifying
+            backup_path = self._backup_file(file_path)
             
             # Basic formatting fixes
             lines = content.split('\n')
@@ -803,6 +898,9 @@ def placeholder_function():
             content = script_file.read_text(encoding="utf-8")
             lines = content.split('\n')
             
+            # Create backup before modifying
+            backup_path = self._backup_file(script_path)
+            
             # Find the function definition and extract it
             function_lines = []
             function_start = None
@@ -860,36 +958,39 @@ def placeholder_function():
             self.logger.error(f"Error moving function {function_name}: {e}")
             return False
     
-    def _suggest_library_import(self, function_name: str, module_name: str = None) -> Optional[str]:
+    def _suggest_library_import(self, function_name: str, module_name: str = None) -> Optional[List[str]]:
         """Suggest library imports for common functions"""
-        if function_name in self.common_imports:
-            return self.common_imports[function_name]
+        from typing import List
+        
+        if function_name in self.import_suggestions:
+            return [self.import_suggestions[function_name]]
+        
+        if function_name in self.multi_import_suggestions:
+            return self.multi_import_suggestions[function_name]
         
         if function_name in self.math_functions:
-            return f"from math import {function_name}"
+            return [f"from math import {function_name}"]
         
         # Check for common patterns
         if function_name.startswith("is") and function_name.endswith("file"):
-            return "from os.path import isfile"
+            return ["from os.path import isfile"]
         
         if function_name.startswith("is") and function_name.endswith("dir"):
-            return "from os.path import isdir"
+            return ["from os.path import isdir"]
         
         return None
     
-    def _clear_module_cache(self):
-        """Clear Python module cache to force reload of modified modules"""
-        # Clear importlib cache
-        importlib.invalidate_caches()
-        
-        # Remove modules from sys.modules that might have been modified
+    def _clear_module_cache(self, script_path: str):
+        """Clear only locally created modules"""
+        script_dir = Path(script_path).parent
         modules_to_remove = []
-        for module_name in sys.modules:
-            if module_name.startswith("__main__"):
-                continue
-            # Remove local modules that might have been created/modified
-            if not module_name.startswith(("sys", "os", "builtins", "importlib")):
-                modules_to_remove.append(module_name)
+        
+        for module_name in list(sys.modules.keys()):
+            module = sys.modules[module_name]
+            if hasattr(module, '__file__') and module.__file__:
+                module_path = Path(module.__file__)
+                if script_dir in module_path.parents:
+                    modules_to_remove.append(module_name)
         
         for module_name in modules_to_remove:
             if module_name in sys.modules:

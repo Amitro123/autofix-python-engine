@@ -5,62 +5,90 @@ Provides consistent logging setup across all modules.
 
 import logging
 import sys
-from pathlib import Path
+import json
 from typing import Optional
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+from contextlib import contextmanager
 
 try:
-    from colorama import init, Fore, Back, Style
-    init(autoreset=True)  # Initialize colorama
+    from colorama import Fore, Style, init
     COLORAMA_AVAILABLE = True
+    init(autoreset=True)  # Initialize colorama
 except ImportError:
-    # Fallback if colorama is not available
     COLORAMA_AVAILABLE = False
-    class MockColorama:
-        RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = WHITE = RESET = ""
-        BRIGHT = DIM = ""
+
+# Custom log levels for AutoFix
+AUTOFIX_SUCCESS = 25
+AUTOFIX_ATTEMPT = 15
+
+logging.addLevelName(AUTOFIX_SUCCESS, "SUCCESS")
+logging.addLevelName(AUTOFIX_ATTEMPT, "ATTEMPT")
+
+def success(self, message, *args, **kwargs):
+    if self.isEnabledFor(AUTOFIX_SUCCESS):
+        self._log(AUTOFIX_SUCCESS, message, args, **kwargs)
+
+def attempt(self, message, *args, **kwargs):
+    if self.isEnabledFor(AUTOFIX_ATTEMPT):
+        self._log(AUTOFIX_ATTEMPT, message, args, **kwargs)
+
+logging.Logger.success = success
+logging.Logger.attempt = attempt
+
+
+class JsonFormatter(logging.Formatter):
+    """JSON formatter for structured logging"""
     
-    Fore = Back = Style = MockColorama()
+    def format(self, record: logging.LogRecord) -> str:
+        log_obj = {
+            "timestamp": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            log_obj["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_obj, ensure_ascii=False)
 
 
 class AutoFixFormatter(logging.Formatter):
-    """Custom formatter for AutoFix with colored output and consistent format."""
+    """Custom formatter with colors and consistent format"""
     
     def __init__(self, use_colors: bool = True):
         super().__init__()
         
         # Color codes for different log levels using colorama
-        if COLORAMA_AVAILABLE:
+        colors_supported = COLORAMA_AVAILABLE and use_colors
+
+        if colors_supported:
             self.COLORS = {
                 'DEBUG': Fore.CYAN,
                 'INFO': Fore.GREEN,
                 'WARNING': Fore.YELLOW,
                 'ERROR': Fore.RED,
                 'CRITICAL': Fore.RED + Style.BRIGHT,
+                'SUCCESS': Fore.GREEN + Style.BRIGHT,
+                'ATTEMPT': Fore.YELLOW,
             }
             self.RESET = Style.RESET_ALL
         else:
             # Fallback ANSI codes
-            self.COLORS = {
-                'DEBUG': '\033[36m',    # Cyan
-                'INFO': '\033[32m',     # Green
-                'WARNING': '\033[33m',  # Yellow
-                'ERROR': '\033[31m',    # Red
-                'CRITICAL': '\033[35m', # Magenta
-            }
-            self.RESET = '\033[0m'
+            self.COLORS = {}
+            self.RESET = ''
         
-        self.use_colors = True
+        self.use_colors = colors_supported
     
     def format(self, record: logging.LogRecord) -> str:
         # Create base format
         if record.name.startswith('autofix'):
             # Short name for autofix modules
-            logger_name = record.name.replace('autofix.', '').replace('autofix', 'autofix')
+            logger_name = record.name.split('.')[-1]
         else:
             logger_name = record.name
         
         # Format timestamp
-        timestamp = self.formatTime(record, '%Y-%m-%d %H:%M:%S')
+        timestamp = self.formatTime(record, '%H:%M:%S') if not hasattr(record, 'full_timestamp') else self.formatTime(record, '%Y-%m-%d %H:%M:%S')
         
         # Apply colors if enabled
         if self.use_colors and record.levelname in self.COLORS:
@@ -132,7 +160,9 @@ def setup_logging(
     # File handler if specified
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
+        file_handler = RotatingFileHandler(
+            log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        )
         file_handler.setLevel(logging.DEBUG)  # Always debug level for files
         file_handler.setFormatter(AutoFixFormatter(use_colors=False))
         logger.addHandler(file_handler)
@@ -157,6 +187,51 @@ def get_logger(name: str) -> logging.Logger:
         name = f'autofix.{name}'
     
     return logging.getLogger(name)
+
+
+@contextmanager
+def temporary_log_level(logger: logging.Logger, level: int):
+    """
+    Temporarily change log level for a specific context.
+    
+    Args:
+        logger: Logger instance to modify
+        level: Temporary log level to set
+        
+    Usage:
+        with temporary_log_level(logger, logging.DEBUG):
+            # Debug logging enabled here
+            logger.debug("Detailed debugging info")
+        # Original log level restored
+    """
+    original_level = logger.level
+    logger.setLevel(level)
+    try:
+        yield
+    finally:
+        logger.setLevel(original_level)
+
+
+class ProgressLogger:
+    """
+    A logger wrapper for tracking progress through multi-step operations.
+    
+    Usage:
+        progress = ProgressLogger(logger, total_steps=5)
+        progress.step("Analyzing script...")
+        progress.step("Installing packages...")
+        # etc.
+    """
+    def __init__(self, logger: logging.Logger, total_steps: int):
+        self.logger = logger
+        self.total_steps = total_steps
+        self.current_step = 0
+    
+    def step(self, message: str):
+        """Log a progress step with percentage completion."""
+        self.current_step += 1
+        progress = (self.current_step / self.total_steps) * 100
+        self.logger.info(f"[{progress:5.1f}%] {message}")
 
 
 def configure_external_loggers(level: str = "WARNING"):

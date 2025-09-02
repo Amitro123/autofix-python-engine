@@ -12,56 +12,65 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_sum(*args) -> float:
-    """
-    Calculate the sum of numbers (supports both individual args and list).
-    
-    Args:
-        *args: Numbers to sum (can be individual numbers or a list)
-        
-    Returns:
-        Sum of all numbers
-    """
+    """Calculate sum with better type handling"""
     try:
-        # Handle both calculate_sum(5, 10) and calculate_sum([5, 10])
+        # Flatten nested structures
+        def flatten(items):
+            result = []
+            for item in items:
+                if isinstance(item, (list, tuple)):
+                    result.extend(flatten(item))
+                else:
+                    result.append(float(item))  # Convert to number
+            return result
+        
         if len(args) == 1 and isinstance(args[0], (list, tuple)):
-            return sum(args[0])
+            numbers = flatten(args[0])
         else:
-            return sum(args)
+            numbers = flatten(args)
+        
+        return sum(numbers)
     except (TypeError, ValueError) as e:
         logger.error(f"Error calculating sum: {e}")
         return 0.0
 
 
 def validate_file_path(file_path: str) -> bool:
-    """
-    Validate if a file path exists and is accessible.
-    
-    Args:
-        file_path: Path to validate
-        
-    Returns:
-        True if path is valid and accessible, False otherwise
-    """
+    """Validate file path with security checks"""
     import os
+    from pathlib import Path
+    
     try:
-        return os.path.exists(file_path) and os.access(file_path, os.R_OK)
-    except (OSError, TypeError):
+        if not isinstance(file_path, str):
+            return False
+        
+        # Security: prevent path traversal
+        resolved_path = Path(file_path).resolve()
+        if '..' in str(resolved_path):
+            logger.warning(f"Potential path traversal detected: {file_path}")
+            return False
+        
+        return resolved_path.exists() and resolved_path.is_file() and os.access(resolved_path, os.R_OK)
+    except (OSError, TypeError, ValueError):
         return False
 
 
-def safe_dict_get(dictionary: Dict[str, Any], key: str, default: Any = None) -> Any:
-    """
-    Safely get a value from a dictionary with error handling.
-    
-    Args:
-        dictionary: Dictionary to search
-        key: Key to look for
-        default: Default value if key not found
-        
-    Returns:
-        Value from dictionary or default
-    """
+def safe_dict_get(dictionary: Dict[str, Any], key: str, default: Any = None, validate_type: type = None) -> Any:
+    """Enhanced safe dictionary access with type validation"""
     try:
-        return dictionary.get(key, default)
-    except (AttributeError, TypeError):
+        if not isinstance(dictionary, dict):
+            logger.warning("Expected dictionary, got {type(dictionary)}")
+            return default
+        
+        value = dictionary.get(key, default)
+        
+        # Optional type validation
+        if validate_type is not None and value is not default:
+            if not isinstance(value, validate_type):
+                logger.warning(f"Expected {validate_type}, got {type(value)} for key '{key}'")
+                return default
+        
+        return valuegit
+    except (AttributeError, TypeError) as e:
+        logger.error(f"Error accessing dictionary key '{key}': {e}")
         return default

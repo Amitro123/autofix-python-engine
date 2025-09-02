@@ -95,15 +95,11 @@ Examples:
         
         return path.resolve()
     
-    def print_banner(self):
+    def print_banner(self, quiet_mode: bool = False):
         """Print AutoFix banner"""
-        banner = """
-========================================
-          AutoFix v1.0.0
-   Intelligent Python Error Fixer
-========================================
-"""
-        self.logger.info(banner)
+        if not quiet_mode:
+            self.logger.info("AutoFix v1.0.0 - Python Error Fixer")
+            self.logger.info("=" * 40)
     
     def print_summary(self, script_path: str, success: bool):
         """Print execution summary"""
@@ -121,7 +117,7 @@ Examples:
         # Handle case where no script is provided
         if not parsed_args.script_path:
             parser.print_help()
-            return 1
+            return 0
         
         # Configure logging based on arguments
         setup_logging(
@@ -141,7 +137,7 @@ Examples:
         
         # Print banner for non-quiet mode
         if not parsed_args.quiet:
-            self.print_banner()
+            self.print_banner(quiet_mode=parsed_args.quiet)
             self.logger.info(f"Running: {script_path}")
             self.logger.info(f"Max retries: {parsed_args.max_retries}")
             print("-" * 50)
@@ -149,7 +145,10 @@ Examples:
         try:
             if parsed_args.dry_run:
                 self.logger.info("DRY RUN MODE - No changes will be made")
-                print(f"[AutoFix] Would run: {script_path}")
+                try:
+                    self.fixer.analyze_potential_fixes(str(script_path))
+                except Exception as e:
+                    self.logger.info(f"Would attempt to fix: {e}")
                 return 0
             
             # Run the script with automatic error fixing

@@ -161,8 +161,9 @@ class TestAutoFixCLI(unittest.TestCase):
         self.assertEqual(result, 1)
     
     def test_logging_levels(self):
-        """Test logging level configuration"""
-        from autofix.logging_utils import setup_logging
+        """Test logging level configuration and custom log levels"""
+        from autofix.logging_utils import setup_logging, get_logger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
+        import logging
         
         # Test verbose mode
         with patch('autofix.cli.setup_logging') as mock_setup:
@@ -179,6 +180,21 @@ class TestAutoFixCLI(unittest.TestCase):
                     self.cli.run([self.test_script, "--quiet"])
         
         mock_setup.assert_called_with(verbose=False, quiet=True, use_colors=True)
+        
+        # Test custom log levels are properly registered
+        self.assertEqual(AUTOFIX_SUCCESS, 25)
+        self.assertEqual(AUTOFIX_ATTEMPT, 15)
+        
+        # Test that custom methods exist on logger
+        logger = get_logger('test')
+        self.assertTrue(hasattr(logger, 'success'))
+        self.assertTrue(hasattr(logger, 'attempt'))
+        
+        # Test log level hierarchy
+        self.assertLess(logging.DEBUG, AUTOFIX_ATTEMPT)
+        self.assertLess(AUTOFIX_ATTEMPT, logging.INFO)
+        self.assertLess(logging.INFO, AUTOFIX_SUCCESS)
+        self.assertLess(AUTOFIX_SUCCESS, logging.WARNING)
 
 
 if __name__ == "__main__":
