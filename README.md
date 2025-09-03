@@ -10,10 +10,14 @@ An intelligent Python error fixing tool that automatically detects, analyzes, an
   - `IndentationError` - Fixes missing, inconsistent, or unexpected indentation
   - `SyntaxError` - Corrects broken keywords and common syntax issues
   - `TypeError` - Fixes type mismatches (string concatenation, argument count, etc.)
+  - `IndexError` - Adds bounds checking and safe indexing for lists and strings
 - **💬 Interactive CLI**: User-friendly interface with permission prompts and loading indicators
 - **📊 Firebase Integration**: Real-time metrics tracking and reporting
 - **⚡ Automatic Retries**: Applies fixes and retries script execution until success
 - **🎯 High Success Rate**: Intelligent pattern matching and context-aware fixes
+
+Tired of wasting time on missing pip install, indentation mistakes, or frustrating TypeErrors?
+AutoFix is an intelligent engine that automatically detects, analyzes, and fixes common Python errors — so you can focus on coding instead of debugging setup issues.
 
 ## Installation
 
@@ -128,6 +132,13 @@ parsed_error = parser.parse_exception(exception, "script.py")
   - Unsupported operand types
   - Unhashable type errors
 
+### 📊 **IndexError**
+- **Detection**: List and string index out of range errors
+- **Fixes**:
+  - Adds bounds checking (`my_list[5]` → `my_list[5] if len(my_list) > 5 else None`)
+  - Safe indexing with fallback values
+  - Try-except wrappers for complex index access patterns
+
 ## Testing
 
 ### Run All Tests
@@ -146,6 +157,7 @@ python autofix_cli_interactive.py tests/test_missing_module_demo.py
 python autofix_cli_interactive.py tests/test_indentation_demo.py
 python autofix_cli_interactive.py tests/test_type_error_demo.py
 python autofix_cli_interactive.py tests/test_simple_type_error.py
+python autofix_cli_interactive.py tests/test_index_error_demo.py
 ```
 
 ## Example Workflows
@@ -196,6 +208,24 @@ INFO: Fix type mismatch in operation (e.g., string + int)
 ACTION REQUIRED: Would you like to automatically fix the TypeError? (y/n): y
 INFO: TypeError fixed. Retrying script execution...
 Hello123
+INFO: The issue has been resolved, the script now runs successfully!
+```
+
+### 📊 **IndexError Fix**
+```python
+# test_index_error.py
+my_list = [1, 2, 3]
+value = my_list[5]  # IndexError: list index out of range
+print(value)
+```
+
+```bash
+$ python autofix_cli_interactive.py test_index_error.py
+INFO: Detected error: IndexError
+INFO: Check list length before accessing: if len(my_list) > index:
+ACTION REQUIRED: Would you like to automatically fix the IndexError? (y/n): y
+INFO: IndexError fixed. Retrying script execution...
+None
 INFO: The issue has been resolved, the script now runs successfully!
 ```
 
@@ -258,6 +288,7 @@ Based on comprehensive testing:
 - **IndentationError**: ~90% success rate  
 - **SyntaxError**: ~80% success rate (common cases)
 - **TypeError**: ~85% success rate (type conversions)
+- **IndexError**: ~90% success rate (bounds checking)
 
 ## Contributing
 

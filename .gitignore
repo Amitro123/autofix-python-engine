@@ -65,6 +65,7 @@ api_keys.txt
 integration_test_report.json
 bandit_report.json
 stress_test_results.json
+firebase-key.json
 
 # Database files
 *.db

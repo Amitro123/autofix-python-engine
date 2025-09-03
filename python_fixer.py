@@ -8,6 +8,7 @@ Handles automatic fixing of common Python errors including:
 - NameError (undefined functions, variables)
 - AttributeError (missing attributes, methods)
 - SyntaxError (version compatibility issues)
+- IndexError (list/array index out of bounds)
 """
 
 import ast
@@ -301,6 +302,8 @@ class PythonFixer:
             return self._fix_attribute_error(error)
         elif error.error_type == "SyntaxError":
             return self._fix_syntax_error(error)
+        elif error.error_type == "IndexError":
+            return self._fix_index_error(error)
         else:
             self.logger.warning(f"No fix available for {error.error_type}")
             return False
@@ -422,6 +425,92 @@ class PythonFixer:
         # For now, we can't automatically fix syntax errors
         # but we provide helpful information
         return False
+    
+    def _fix_index_error(self, error: ParsedError) -> bool:
+        """Fix IndexError by adding bounds checking or safe indexing"""
+        self.logger.info(f"Attempting to fix IndexError: {error.error_message}")
+        
+        try:
+            script_file = Path(error.file_path)
+            content = script_file.read_text(encoding="utf-8")
+            lines = content.split('\n')
+            
+            if not error.line_number:
+                self.logger.warning("No line number available for IndexError fix")
+                return False
+            
+            line_idx = error.line_number - 1
+            if line_idx >= len(lines):
+                self.logger.warning("Line number out of range")
+                return False
+            
+            problematic_line = lines[line_idx].strip()
+            self.logger.info(f"Problematic line: {problematic_line}")
+            
+            # Common IndexError patterns and fixes
+            fixes_applied = []
+            
+            # Pattern 1: Direct list indexing like list[index]
+            import re
+            list_access_pattern = r'(\w+)\[(\w+|\d+)\]'
+            matches = re.findall(list_access_pattern, problematic_line)
+            
+            if matches:
+                original_line = lines[line_idx]
+                fixed_line = original_line
+                
+                for list_name, index_expr in matches:
+                    # Replace unsafe indexing with safe indexing
+                    unsafe_access = f"{list_name}[{index_expr}]"
+                    safe_access = f"{list_name}[{index_expr}] if {index_expr} < len({list_name}) else None"
+                    
+                    # For numeric indices, add bounds check
+                    if index_expr.isdigit():
+                        safe_access = f"{list_name}[{index_expr}] if len({list_name}) > {index_expr} else None"
+                    
+                    fixed_line = fixed_line.replace(unsafe_access, safe_access)
+                    fixes_applied.append(f"Added bounds check for {list_name}[{index_expr}]")
+                
+                if fixed_line != original_line:
+                    lines[line_idx] = fixed_line
+                    self.logger.info(f"Fixed line: {fixed_line.strip()}")
+            
+            # Pattern 2: String indexing
+            string_access_pattern = r'(\w+)\[(\w+|\d+)\]'
+            if 'str' in error.error_message.lower() or 'string' in error.error_message.lower():
+                for list_name, index_expr in matches:
+                    original_access = f"{list_name}[{index_expr}]"
+                    safe_access = f"{list_name}[{index_expr}] if {index_expr} < len({list_name}) else ''"
+                    
+                    if index_expr.isdigit():
+                        safe_access = f"{list_name}[{index_expr}] if len({list_name}) > {index_expr} else ''"
+                    
+                    lines[line_idx] = lines[line_idx].replace(original_access, safe_access)
+                    fixes_applied.append(f"Added bounds check for string {list_name}[{index_expr}]")
+            
+            # If we made fixes, write the file back
+            if fixes_applied:
+                # Create backup before modifying
+                backup_path = self._backup_file(error.file_path)
+                self.logger.info(f"Created backup: {backup_path}")
+                
+                # Write fixed content
+                fixed_content = '\n'.join(lines)
+                script_file.write_text(fixed_content, encoding="utf-8")
+                
+                self.logger.success(f"Applied IndexError fixes: {', '.join(fixes_applied)}")
+                return True
+            else:
+                # Provide guidance if we can't automatically fix
+                self.logger.info("IndexError fix suggestions:")
+                self.logger.info("1. Check list/string length before accessing: if len(my_list) > index:")
+                self.logger.info("2. Use try-except: try: value = my_list[index] except IndexError: value = None")
+                self.logger.info("3. Use get() method for dictionaries or safe indexing")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error fixing IndexError: {e}")
+            return False
     
     def _is_known_pip_package(self, module_name: str) -> bool:
         """Check if module is a known pip package"""

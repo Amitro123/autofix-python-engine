@@ -3,7 +3,13 @@
 Metrics and statistics tracking for AutoFix operations.
 
 This module provides classes and utilities for tracking fix outcomes,
-performance metrics, and generating reports.
+performance metrics, and generating reports using secure Firestore REST API.
+
+Why REST API instead of Admin SDK:
+- Admin SDK requires private service account keys (firebase-key.json)
+- REST API uses public Web API keys, safe for client distribution
+- No sensitive credentials exposed to end users
+- Maintains full Firestore functionality for metrics collection
 """
 
 import logging
@@ -11,10 +17,11 @@ import time
 from collections import Counter, defaultdict
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import contextmanager
 
-from tests import test_pip_conflicts
+# Import secure Firestore client
+from firestore_client import get_metrics_collector, save_metrics
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
@@ -42,40 +49,73 @@ def log_duration(logger: logging.Logger, operation: str):
 
 @dataclass
 class FixAttempt:
-    """Record of a single fix attempt"""
+    """Record of a single fix attempt with enhanced metrics"""
     timestamp: datetime
     operation: str
-    outcome: str  # "success", "failure", "partial"
+    outcome: str  # "success", "failure", "partial", "fix_succeeded", "fix_failed", "canceled"
     duration: float
     error_type: Optional[str] = None
     details: Optional[str] = None
+    script_path: Optional[str] = None
+    line_number: Optional[int] = None
+    fix_applied: bool = False
 
 
 class FixStats:
-    """Track fix outcomes and generate statistics"""
+    """Track fix outcomes and generate statistics with Firestore integration"""
     
-    def __init__(self):
+    def __init__(self, enable_firestore: bool = True):
         self.counter = Counter()
         self.attempts: List[FixAttempt] = []
         self.durations = defaultdict(list)
+        self.enable_firestore = enable_firestore
+        self.metrics_collector = get_metrics_collector() if enable_firestore else None
     
     def record(self, outcome: str, operation: str = "fix", duration: float = 0.0, 
-                 error_type: Optional[str] = None, details: Optional[str] = None):
-        """Record a fix attempt outcome"""
+                 error_type: Optional[str] = None, details: Optional[str] = None,
+                 script_path: Optional[str] = None, line_number: Optional[int] = None,
+                 fix_applied: bool = False, **kwargs):
+        """Record a fix attempt outcome with enhanced metrics and Firestore integration"""
         self.counter[outcome] += 1
         
         attempt = FixAttempt(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation=operation,
             outcome=outcome,
             duration=duration,
             error_type=error_type,
-            details=details
+            details=details,
+            script_path=script_path,
+            line_number=line_number,
+            fix_applied=fix_applied
         )
         self.attempts.append(attempt)
         
         if duration > 0:
             self.durations[operation].append(duration)
+        
+        # Save to Firestore if enabled and script_path provided
+        if self.enable_firestore and script_path and self.metrics_collector:
+            error_details = {
+                "operation": operation,
+                "duration": duration,
+                "fix_applied": fix_applied
+            }
+            if line_number:
+                error_details["line_number"] = line_number
+            if details:
+                error_details["details"] = details[:200]  # Limit size
+            
+            self.metrics_collector.save_metrics(
+                script_path=script_path,
+                status=outcome,
+                original_error=error_type,
+                error_details=error_details,
+                message=f"{operation} {outcome}",
+                fix_attempts=1 if outcome in ["fix_succeeded", "fix_failed"] else 0,
+                fix_duration=duration,
+                **kwargs
+            )
     
     def report(self, logger: logging.Logger):
         """Generate and log basic statistics report"""
@@ -124,5 +164,75 @@ class FixStats:
         self.counter.clear()
         self.attempts.clear()
         self.durations.clear()
+    
+    def save_summary_metrics(self, script_path: str):
+        """Save summary metrics to Firestore"""
+        if not self.enable_firestore or not self.metrics_collector:
+            return
+        
+        total_attempts = sum(self.counter.values())
+        if total_attempts == 0:
+            return
+        
+        success_count = self.counter.get("success", 0) + self.counter.get("fix_succeeded", 0)
+        failure_count = self.counter.get("failure", 0) + self.counter.get("fix_failed", 0)
+        success_rate = (success_count / total_attempts) * 100 if total_attempts > 0 else 0
+        
+        avg_duration = 0.0
+        if self.durations:
+            all_durations = []
+            for durations_list in self.durations.values():
+                all_durations.extend(durations_list)
+            avg_duration = sum(all_durations) / len(all_durations) if all_durations else 0.0
+        
+        summary_details = {
+            "total_attempts": total_attempts,
+            "success_count": success_count,
+            "failure_count": failure_count,
+            "success_rate_percent": round(success_rate, 2),
+            "average_duration_seconds": round(avg_duration, 3),
+            "error_types": dict(self.get_error_summary())
+        }
+        
+        self.metrics_collector.save_metrics(
+            script_path=script_path,
+            status="session_summary",
+            error_details=summary_details,
+            message=f"Session summary: {total_attempts} attempts, {success_rate:.1f}% success rate",
+            fix_attempts=total_attempts,
+            fix_duration=avg_duration
+        )
+
+
+# Convenience functions for easy metrics recording
+def record_fix_attempt(script_path: str, outcome: str, error_type: str = None, 
+                      duration: float = 0.0, line_number: int = None, **kwargs):
+    """Convenience function to record a fix attempt with Firestore integration"""
+    return save_metrics(
+        script_path=script_path,
+        status=outcome,
+        original_error=error_type,
+        error_details=kwargs,
+        fix_duration=duration,
+        fix_attempts=1 if outcome in ["fix_succeeded", "fix_failed"] else 0
+    )
+
+def record_session_start(script_path: str):
+    """Record the start of an AutoFix session"""
+    return save_metrics(
+        script_path=script_path,
+        status="session_start",
+        message="AutoFix session started"
+    )
+
+def record_session_end(script_path: str, total_fixes: int = 0, success: bool = False):
+    """Record the end of an AutoFix session"""
+    return save_metrics(
+        script_path=script_path,
+        status="session_end",
+        error_details={"total_fixes_attempted": total_fixes, "session_successful": success},
+        message=f"AutoFix session ended - {'Success' if success else 'Failed'}",
+        fix_attempts=total_fixes
+    )
 
 

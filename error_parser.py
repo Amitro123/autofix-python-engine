@@ -70,6 +70,8 @@ class ErrorParser:
             return self._parse_attribute_error(exception, script_path)
         elif isinstance(exception, SyntaxError):
             return self._parse_syntax_error(exception, script_path)
+        elif isinstance(exception, IndexError):
+            return self._parse_index_error(exception, script_path)
         else:
             return ParsedError(
                 error_type=error_type,
@@ -277,6 +279,31 @@ class ErrorParser:
                 }
         
         return None
+    
+    def _parse_index_error(self, exception: IndexError, script_path: str) -> ParsedError:
+        """Parse IndexError"""
+        error_message = str(exception)
+        line_number = self._extract_line_number(exception)
+        context = self._extract_context(script_path, line_number)
+        
+        # Extract information about the index error
+        suggested_fix = "Add bounds checking before accessing list/string indices"
+        
+        # Try to extract more specific information from the error message
+        if "list index out of range" in error_message:
+            suggested_fix = "Check list length before accessing: if len(my_list) > index:"
+        elif "string index out of range" in error_message:
+            suggested_fix = "Check string length before accessing: if len(my_string) > index:"
+        
+        return ParsedError(
+            error_type="IndexError",
+            error_message=error_message,
+            file_path=script_path,
+            line_number=line_number,
+            suggested_fix=suggested_fix,
+            confidence=0.7,
+            context_lines=context
+        )
     
     def apply_fix_with_transaction(self, script_path: str, fix_function, *args, **kwargs) -> bool:
         """
