@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from logging_utils import setup_logging, get_logger, temporary_log_level, ProgressLogger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
-from metrics import log_duration
+from metrics_and_reports import log_duration
 import logging
 
 

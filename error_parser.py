@@ -11,6 +11,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from rollback import FixTransaction
 
 from logging_utils import get_logger
 
@@ -97,11 +98,18 @@ class ErrorParser:
         if not line_number:
             return None
         try:
-            lines = Path(script_path).read_text().splitlines()
+            lines = Path(script_path).read_text(encoding='utf-8').splitlines()
             start = max(0, line_number - 2)
             end = min(len(lines), line_number + 1)
             return lines[start:end]
-        except Exception:
+        except (FileNotFoundError, PermissionError) as e:
+            self.logger.warning(f"Cannot read file {script_path}: {e}")
+            return None
+        except UnicodeDecodeError as e:
+            self.logger.warning(f"Encoding error reading {script_path}: {e}")
+            return None
+        except OSError as e:
+            self.logger.warning(f"OS error reading {script_path}: {e}")
             return None   
 
     
@@ -269,3 +277,109 @@ class ErrorParser:
                 }
         
         return None
+    
+    def apply_fix_with_transaction(self, script_path: str, fix_function, *args, **kwargs) -> bool:
+        """
+        Apply a fix function with transaction support and automatic rollback.
+        
+        Args:
+            script_path: Path to the script file
+            fix_function: Function that applies the fix
+            *args, **kwargs: Arguments to pass to the fix function
+            
+        Returns:
+            bool: True if fix was successful, False otherwise
+        """
+        script_file = Path(script_path)
+        
+        try:
+            with FixTransaction(script_file) as transaction:
+                self.logger.info(f"Starting transactional fix for {script_path}")
+                
+                # Apply the fix function
+                result = fix_function(script_path, *args, **kwargs)
+                
+                if not result:
+                    raise ValueError("Fix function returned False - fix failed")
+                
+                self.logger.success(f"Fix applied successfully to {script_path}")
+                return True
+                
+        except ValueError as e:
+            self.logger.error(f"Fix validation failed for {script_path}: {e}")
+            self.logger.info("File has been automatically restored from backup")
+            return False
+        except (FileNotFoundError, PermissionError) as e:
+            self.logger.error(f"File access error for {script_path}: {e}")
+            self.logger.info("File has been automatically restored from backup")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error during fix for {script_path}: {e}")
+            self.logger.info("File has been automatically restored from backup")
+            return False
+    
+    def create_safe_fix_context(self, script_path: str):
+        """
+        Create a context manager for safe file fixing with automatic rollback.
+        
+        Usage:
+            with parser.create_safe_fix_context("script.py") as ctx:
+                # Apply fixes here
+                ctx.apply_fix(some_fix_function, arg1, arg2)
+        """
+        return SafeFixContext(script_path, self.logger)
+
+
+class SafeFixContext:
+    """Context manager for safe file fixing with transaction support"""
+    
+    def __init__(self, script_path: str, logger):
+        self.script_path = script_path
+        self.script_file = Path(script_path)
+        self.logger = logger
+        self.transaction = None
+        self.fixes_applied = []
+    
+    def __enter__(self):
+        """Enter the safe fix context"""
+        self.transaction = FixTransaction(self.script_file)
+        self.transaction.__enter__()
+        self.logger.info(f"Started safe fix context for {self.script_path}")
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the safe fix context"""
+        if exc_type:
+            self.logger.error(f"Error in safe fix context: {exc_val}")
+            self.logger.info("All changes will be rolled back automatically")
+        else:
+            self.logger.success(f"Safe fix context completed successfully for {self.script_path}")
+            if self.fixes_applied:
+                self.logger.info(f"Applied {len(self.fixes_applied)} fixes: {', '.join(self.fixes_applied)}")
+        
+        return self.transaction.__exit__(exc_type, exc_val, exc_tb)
+    
+    def apply_fix(self, fix_function, *args, **kwargs):
+        """Apply a fix function within the safe context"""
+        fix_name = getattr(fix_function, '__name__', 'unknown_fix')
+        
+        try:
+            self.logger.attempt(f"Applying fix: {fix_name}")
+            result = fix_function(self.script_path, *args, **kwargs)
+            
+            if result:
+                self.fixes_applied.append(fix_name)
+                self.logger.success(f"Fix applied successfully: {fix_name}")
+                return True
+            else:
+                raise ValueError(f"Fix function {fix_name} returned False")
+                
+        except ValueError as e:
+            self.logger.error(f"Fix validation failed for {fix_name}: {e}")
+            raise  # Re-raise to trigger rollback
+        except (FileNotFoundError, PermissionError) as e:
+            self.logger.error(f"File access error in fix {fix_name}: {e}")
+            raise  # Re-raise to trigger rollback
+        except Exception as e:
+            self.logger.error(f"Unexpected error in fix {fix_name}: {e}")
+            raise  # Re-raise to trigger rollback
