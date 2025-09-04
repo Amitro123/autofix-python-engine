@@ -5,10 +5,14 @@ import re
 import threading
 import time
 import json
+import argparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
+from logging_utils import get_logger
+
+logger = get_logger("autofix_cli_interactive")
 
 # Firebase Admin SDK for production metrics (transparent to users)
 try:
@@ -346,7 +350,7 @@ class AutoFixer:
     
     def run_script(self, script_path: str) -> Tuple[bool, Optional[subprocess.CalledProcessError]]:
         """Run script with loading spinner"""
-        print(f"INFO: Running script: {script_path}")
+        logger.info(f"INFO: Running script: {script_path}")
         
         spinner_event = threading.Event()
         spinner_thread = threading.Thread(target=self._loading_spinner, args=(spinner_event,))
@@ -358,17 +362,19 @@ class AutoFixer:
             spinner_event.set()
             spinner_thread.join()
             print("\r" + " " * 30 + "\r", end="")
-            print(result.stdout)
+            logger.info(f"Script output: {result.stdout.strip()}")
             return True, None
         except subprocess.CalledProcessError as e:
             spinner_event.set()
             spinner_thread.join()
             print("\r" + " " * 30 + "\r", end="")
+            logger.error(f"Script failed with error: {e.stderr.strip()}")
             return False, e
         except FileNotFoundError:
             spinner_event.set()
             spinner_thread.join()
-            print(f"ERROR: File not found: {script_path}")
+            logger.error(f"ERROR: File not found: {script_path}")
+            print(f"ERROR: Script file not found: {script_path}")
             return False, None
     
     def _loading_spinner(self, stop_event):
@@ -389,187 +395,165 @@ class AutoFixer:
         return None
     
     def save_metrics(self, script_path: str, status: str, original_error: str = None, 
-                    error_details: Dict[str, Any] = None, message: str = None,
-                    fix_attempts: int = 0, fix_duration: float = 0.0, **kwargs):
-        """Save metrics transparently to developer's Firebase project"""
+                 error_details: Dict[str, Any] = None, message: str = None,
+                 fix_attempts: int = 0, fix_duration: float = 0.0, **kwargs):
         if not METRICS_ENABLED or not db:
             return False
         
         try:
-            # Build standardized metrics document
             metrics = {
                 "app_id": __app_id,
-                "script_path": os.path.basename(script_path),  # Only filename for privacy
+                "script_path": os.path.basename(script_path),
                 "status": status,
                 "timestamp": firestore.SERVER_TIMESTAMP,
                 "fix_attempts": fix_attempts,
                 "fix_duration": fix_duration
             }
             
-            # Add optional fields if provided
             if original_error:
                 metrics["original_error"] = original_error
-            
-            if error_details:
-                metrics["error_details"] = error_details
-            else:
-                metrics["error_details"] = {}
-            
-            if message:
-                metrics["message"] = message
-            else:
-                # Generate default message based on status
-                if status == "success":
-                    metrics["message"] = "Script executed successfully"
-                elif status == "fix_succeeded":
-                    metrics["message"] = f"Successfully fixed {original_error or 'error'}"
-                elif status == "fix_failed":
-                    metrics["message"] = f"Failed to fix {original_error or 'error'}"
-                elif status == "canceled":
-                    metrics["message"] = f"User canceled {original_error or 'error'} fix"
-                else:
-                    metrics["message"] = f"Status: {status}"
-            
-            # Add any additional fields
+            metrics["error_details"] = error_details or {}
+            metrics["message"] = message or f"Status: {status}"
             metrics.update(kwargs)
             
-            # Save to Firestore: artifacts/{app_id}/metrics
             collection_ref = db.collection('artifacts').document(__app_id).collection('metrics')
             collection_ref.add(metrics)
-            
+            logger.info(f"Saved metrics: {status} for script {script_path}")
             return True
-            
         except Exception as e:
-            # Silent failure - don't interrupt user experience
+            logger.error(f"Failed to save metrics to Firebase: {e}")
             return False
+
     
-    def process_script(self, script_path: str) -> bool:
-        """Main processing logic"""
+    def process_script(self, script_path: str, max_retries: int = 3, auto_fix: bool = False) -> bool:
+        """Main processing logic with retry mechanism"""
         if not os.path.exists(script_path):
+            logger.error(f"Script not found: {script_path}")
             print(f"ERROR: Script not found: {script_path}")
             return False
 
-        # Try running the script
-        success, error = self.run_script(script_path)
+        retry_attempts = 0
         
-        if success:
-            print("INFO: Script ran successfully with no errors.")
-            self.save_metrics(
-                script_path=script_path, 
-                status="success",
-                message="Script executed without errors"
-            )
-            return True
+        while retry_attempts <= max_retries:
+            success, error = self.run_script(script_path)
 
-        if not error:
-            print("INFO: Unknown error occurred.")
-            self.save_metrics(
-                script_path=script_path, 
-                status="failure", 
-                original_error="Unknown",
-                message="Unknown error occurred during execution"
-            )
-            return False
-
-        # Find appropriate handler
-        handler = self.find_handler(error.stderr)
-        
-        if not handler:
-            print("INFO: Error type not supported for automatic fixing.")
-            print("Full error output:")
-            print(error.stderr)
-            self.save_metrics(
-                script_path=script_path, 
-                status="unsupported_error",
-                error_details={"stderr": error.stderr[:500]},  # Limit size
-                message="Error type not supported for automatic fixing"
-            )
-            return False
-
-        # Extract error details and ask for permission
-        details = handler.extract_details(error.stderr)
-        
-        print(f"INFO: Detected error: {handler.error_name}")
-        print(f"INFO: {details.suggestion}")
-        if details.line_number:
-            print(f"INFO: Error on line {details.line_number}")
-        
-        user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name}? (y/n): ").strip().lower()
-        
-        if user_input != 'y':
-            print("INFO: Fix canceled by user.")
-            self.save_metrics(
-                script_path=script_path, 
-                status="canceled", 
-                original_error=handler.error_name,
-                error_details={"error_type": details.error_type, "line_number": details.line_number},
-                message=f"User canceled {handler.error_name} fix"
-            )
-            return False
-
-        # Attempt the fix
-        print(f"INFO: Attempting to fix {handler.error_name}...")
-        
-        if handler.fix_error(script_path, details):
-            print(f"INFO: {handler.error_name} fixed. Retrying script execution...")
-            
-            # Retry the script
-            success, _ = self.run_script(script_path)
             if success:
-                print("INFO: The issue has been resolved, the script now runs successfully!")
+                logger.info("Script ran successfully with no errors.")
+                print("INFO: Script ran successfully with no errors.")
                 self.save_metrics(
-                    script_path=script_path, 
-                    status="fix_succeeded", 
-                    original_error=handler.error_name,
-                    error_details={
-                        "error_type": details.error_type, 
-                        "line_number": details.line_number,
-                        "fix_applied": True
-                    },
-                    message=f"Successfully fixed {handler.error_name}",
-                    fix_attempts=1
+                    script_path=script_path,
+                    status="success",
+                    message="Script executed without errors",
+                    fix_attempts=retry_attempts
                 )
                 return True
-            else:
-                print(f"ERROR: The script still fails after fixing {handler.error_name}.")
+
+            if not error:
+                logger.error("Unknown error occurred.")
+                print("INFO: Unknown error occurred.")
                 self.save_metrics(
-                    script_path=script_path, 
-                    status="fix_failed", 
-                    original_error=handler.error_name,
-                    error_details={
-                        "error_type": details.error_type, 
-                        "line_number": details.line_number,
-                        "fix_applied": True,
-                        "still_failing": True
-                    },
-                    message=f"Fix applied but {handler.error_name} still occurs",
-                    fix_attempts=1
+                    script_path=script_path,
+                    status="failure",
+                    original_error="Unknown",
+                    message="Unknown error occurred during execution",
+                    fix_attempts=retry_attempts
                 )
                 return False
-        else:
-            print(f"ERROR: Failed to automatically fix {handler.error_name}.")
-            self.save_metrics(
-                script_path=script_path, 
-                status="fix_failed", 
-                original_error=handler.error_name,
-                error_details={
-                    "error_type": details.error_type, 
-                    "line_number": details.line_number,
-                    "fix_applied": False
-                },
-                message=f"Failed to apply fix for {handler.error_name}",
-                fix_attempts=1
-            )
-            return False
+
+            handler = self.find_handler(error.stderr)
+
+            if not handler:
+                logger.info("Error type not supported for automatic fixing.")
+                print("INFO: Error type not supported for automatic fixing.")
+                print("Full error output:")
+                print(error.stderr)
+                self.save_metrics(
+                    script_path=script_path,
+                    status="unsupported_error",
+                    error_details={"stderr": error.stderr[:500]},
+                    message="Error type not supported for automatic fixing",
+                    fix_attempts=retry_attempts
+                )
+                return False
+
+            details = handler.extract_details(error.stderr)
+
+            print(f"INFO: Detected error: {handler.error_name}")
+            print(f"INFO: {details.suggestion}")
+            if details.line_number:
+                print(f"INFO: Error on line {details.line_number}")
+
+            if auto_fix:
+                user_confirmed = True
+                logger.info("Auto-fix enabled; automatically approving fix.")
+                print("INFO: Auto-fix enabled; automatically approving fix.")
+            else:
+                user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name}? (y/n): ").strip().lower()
+                user_confirmed = user_input in ('y', 'yes')
+
+            if not user_confirmed:
+                logger.info("Fix canceled by user.")
+                print("INFO: Fix canceled by user.")
+                self.save_metrics(
+                    script_path=script_path,
+                    status="canceled",
+                    original_error=handler.error_name,
+                    error_details={"error_type": details.error_type, "line_number": details.line_number},
+                    message=f"User canceled {handler.error_name} fix",
+                    fix_attempts=retry_attempts
+                )
+                return False
+
+            logger.info(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+            print(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+
+            if handler.fix_error(script_path, details):
+                retry_attempts += 1
+                logger.info(f"{handler.error_name} fixed. Retrying script execution (Attempt {retry_attempts})...")
+                print(f"{handler.error_name} fixed. Retrying script execution...")
+            else:
+                logger.error(f"Failed to fix {handler.error_name} on attempt {retry_attempts + 1}.")
+                print(f"ERROR: Failed to automatically fix {handler.error_name} on attempt {retry_attempts + 1}.")
+                self.save_metrics(
+                    script_path=script_path,
+                    status="fix_failed",
+                    original_error=handler.error_name,
+                    error_details={
+                        "error_type": details.error_type,
+                        "line_number": details.line_number,
+                        "fix_applied": False
+                    },
+                    message=f"Failed to apply fix for {handler.error_name}",
+                    fix_attempts=retry_attempts
+                )
+                return False
+
+        # If we've exceeded max retries
+        logger.error(f"Exceeded max retries ({max_retries}) for script {script_path}. Fix failed.")
+        print(f"ERROR: Exceeded max retries ({max_retries}). Fix failed.")
+        self.save_metrics(
+            script_path=script_path,
+            status="fix_failed",
+            original_error=handler.error_name if 'handler' in locals() else "Unknown",
+            message="Maximum retry attempts exceeded",
+            fix_attempts=retry_attempts
+        )
+        return False
 
 def main():
-    """Main entry point"""
-    if len(sys.argv) < 2:
-        print("Usage: python autofix_cli_interactive.py <script_path>")
-        return
+    """Main entry point with command-line argument parsing"""
+    parser = argparse.ArgumentParser(description="AutoFix Interactive CLI")
+    parser.add_argument("script_path", help="Path to the Python script to fix")
+    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of fix retry attempts (default: 3)")
+    parser.add_argument("--auto-fix", action="store_true", help="Automatically apply fixes without asking for confirmation")
+    
+    args = parser.parse_args()
     
     fixer = AutoFixer()
-    fixer.process_script(sys.argv[1])
+    success = fixer.process_script(args.script_path, max_retries=args.max_retries, auto_fix=args.auto_fix)
+    
+    # Exit with appropriate code
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()

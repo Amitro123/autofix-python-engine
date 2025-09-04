@@ -3,7 +3,11 @@ import shutil
 import os
 import tempfile
 import sys
+import platform
 from pathlib import Path
+from logging_utils import get_logger
+
+logger = get_logger("rollback")
 
 class FixTransaction:
     """
@@ -16,10 +20,22 @@ class FixTransaction:
         self.file_path = file_path
         self.backup_path = None
         
+        
     def __enter__(self):
         """
       with block entry
         """
+        os_name = platform.system()
+
+        if os_name == "Windows":
+   
+            pass
+        elif os_name == "Linux":
+
+            pass
+        elif os_name == "Darwin":  # macOS
+            pass
+
         try:
             #make sure the file exists
             if not self.file_path.is_file():
@@ -29,10 +45,10 @@ class FixTransaction:
             self.backup_path = Path(tempfile.mktemp(suffix=".bak"))
             shutil.copy2(self.file_path, self.backup_path)
             
-            print(f"created backup: {self.file_path} -> {self.backup_path}")
+            logger.info(f"created backup: {self.file_path} -> {self.backup_path}")
             return self
         except Exception as e:
-            print(f"error creating backup: {e}", file=sys.stderr)
+            logger.error(f"error creating backup: {e}")
             # if backup fails, there is no point to continue
             raise
 
@@ -42,26 +58,33 @@ class FixTransaction:
         """
         if exc_type:
             # if an error occurred, perform rollback
-            print("\n-------------------------------------------")
-            print(f"error during fix. performing rollback...")
+            logger.warning("\n-------------------------------------------")
+            logger.warning(f"error during fix. performing rollback...")
             try:
                 if self.backup_path and self.backup_path.is_file():
                     shutil.copy2(self.backup_path, self.file_path)
-                    print(f"restored file: {self.file_path}")
+                    logger.info(f"Restored file from backup: {self.file_path}")
             except Exception as e:
-                print(f"warning: rollback failed: {e}", file=sys.stderr)
-            
-            # delete backup
-            if self.backup_path and self.backup_path.is_file():
-                os.remove(self.backup_path)
-                print(f"deleted backup: {self.backup_path}")
-
-            return False # to ensure the error is not suppressed
-        
+                logger.error(f"warning: rollback failed: {e}")
+               
         # if no error, the fix succeeded - delete backup
-        if self.backup_path and self.backup_path.is_file():
-            print(f"\nfix succeeded. deleting backup: {self.backup_path}")
-            os.remove(self.backup_path)
+        
+        if self.backup_path and self.backup_path.is_file() and not self.retain_backup:
+                try:
+                    os.remove(self.backup_path)
+                    logger.info(f"Deleted backup: {self.backup_path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete backup file: {e}")
+
+                return False  # re-raise error to calling code
+        
+        # If no error, fix succeeded - delete backup unless retain_backup is True
+        if self.backup_path and self.backup_path.is_file() and not self.retain_backup:
+            try:
+                logger.info(f"\nFix succeeded. Deleting backup: {self.backup_path}")
+                os.remove(self.backup_path)
+            except Exception as e:
+                logger.error(f"Failed to delete backup file: {e}")
 
 
 # --- examples ---
@@ -69,22 +92,22 @@ class FixTransaction:
 def fix_with_success(file_path: Path):
     """example of successful fix"""
     with FixTransaction(file_path) as transaction:
-        print(f"inside transaction. fixing {file_path}...")
+        logger.info(f"inside transaction. fixing {file_path}...")
         # fix - add line to file
         with open(file_path, 'a') as f:
             f.write("\n# This line was added successfully by the fixer.")
-        print("fix succeeded!")
+        logger.info("fix succeeded!")
 
 def fix_with_failure(file_path: Path):
     """example of failed fix"""
     try:
         with FixTransaction(file_path) as transaction:
-            print(f"inside transaction. fixing {file_path}...")
+            logger.info(f"inside transaction. fixing {file_path}...")
             # fix - raise error
             raise ValueError("An error occurred during the fix process!")
     except ValueError as e:
-        print(f"error: {e}")
-        print("rollback should be performed automatically.")
+        logger.error(f"error: {e}")
+        logger.info("rollback should be performed automatically.")
 
 # creating a dummy file for testing
 def create_dummy_file(file_path: Path):

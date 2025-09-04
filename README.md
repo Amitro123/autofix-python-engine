@@ -13,7 +13,8 @@ An intelligent Python error fixing tool that automatically detects, analyzes, an
   - `IndexError` - Adds bounds checking and safe indexing for lists and strings
 - **💬 Interactive CLI**: User-friendly interface with permission prompts and loading indicators
 - **📊 Firebase Integration**: Real-time metrics tracking and reporting
-- **⚡ Automatic Retries**: Applies fixes and retries script execution until success
+- **⚡ Retry Mechanism**: Configurable retry attempts with automatic or manual confirmation
+- **🤖 Auto-Fix Mode**: Silent fixing without user prompts for automation
 - **🎯 High Success Rate**: Intelligent pattern matching and context-aware fixes
 
 Tired of wasting time on missing pip install, indentation mistakes, or frustrating TypeErrors?
@@ -43,16 +44,34 @@ pip install -r requirements.txt
 ### Interactive CLI (Recommended)
 
 ```bash
-# Run with interactive prompts and automatic fixing
+# Basic usage with default settings (3 retries, interactive mode)
 python autofix_cli_interactive.py script.py
 
-# The CLI will:
-# 1. Run your script and detect errors
-# 2. Ask permission before applying fixes
-# 3. Show a loading spinner during execution
-# 4. Log metrics to Firebase
-# 5. Retry until success or max attempts reached
+# Custom retry count
+python autofix_cli_interactive.py script.py --max-retries 5
+
+# Automatic fixing without prompts (great for CI/CD)
+python autofix_cli_interactive.py script.py --auto-fix
+
+# Combined: 5 retries with auto-fix
+python autofix_cli_interactive.py script.py --max-retries 5 --auto-fix
 ```
+
+### CLI Arguments
+
+script_path: Path to the Python script to fix (required)
+
+--max-retries <n>: Maximum number of fix retry attempts (default: 3)
+
+--auto-fix: Automatically apply fixes without asking for confirmation
+
+### CLI Workflow
+1. Runs your script and detects errors
+2. Shows error details and suggested fixes
+3. Requests permission to fix errors (unless --auto-fix is enabled)
+4. Applies fixes and retries script execution
+5. Continues until success or max retries reached
+6. Logs all metrics to Firebase (if configured)
 
 ### Traditional CLI
 
@@ -68,9 +87,6 @@ python cli.py --dry-run script.py
 
 # Quiet mode
 python cli.py --quiet script.py
-
-# Limit retry attempts
-python cli.py --max-retries 5 script.py
 ```
 
 ### Programmatic Usage
@@ -138,6 +154,11 @@ parsed_error = parser.parse_exception(exception, "script.py")
   - Adds bounds checking (`my_list[5]` → `my_list[5] if len(my_list) > 5 else None`)
   - Safe indexing with fallback values
   - Try-except wrappers for complex index access patterns
+
+## Retry Mechanism
+
+- **Detection**: The retry system attempts to fix errors multiple times, which is particularly useful for scripts with sequential errors:
+
 
 ## Testing
 
