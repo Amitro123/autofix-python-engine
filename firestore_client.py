@@ -28,7 +28,7 @@ class FirestoreClient:
     Uses Web API Key instead of service account for safe distribution.
     """
     
-    def __init__(self, project_id: str, api_key: str):
+    def __init__(self, project_id: str = None, api_key: str = None, app_id: str = None):
         """
         Initialize Firestore REST API client.
         
@@ -155,7 +155,7 @@ class MetricsCollector:
         """
         # Default credentials for production metrics collection
         # These are safe public credentials, not secrets
-        self.project_id = project_id or os.getenv('FIREBASE_PROJECT_ID', 'autofix-metrics-prod')
+        self.project_id = project_id or os.getenv('FIREBASE_PROJECT_ID', 'autofix-enginedb')
         self.api_key = api_key or os.getenv('FIREBASE_WEB_API_KEY', 'AIzaSyExample-WebAPIKey-ForMetrics')
         self.app_id = app_id or os.getenv('APP_ID', 'autofix-default-app')
         

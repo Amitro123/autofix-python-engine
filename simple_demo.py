@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from time import sleep
 """
 Simple demo script to test logging configuration
 """

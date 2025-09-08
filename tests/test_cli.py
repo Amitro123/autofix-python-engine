@@ -95,28 +95,30 @@ class TestAutoFixCLI(unittest.TestCase):
         self.assertEqual(result, 0)
     
     @patch.object(AutoFixCLI, 'validate_script_path')
-    @patch.object(AutoFixCLI, 'print_banner')
-    @patch.object(AutoFixCLI, 'print_summary')
-    def test_run_dry_run_mode(self, mock_summary, mock_banner, mock_validate):
+    @patch('metrics_and_reports.ReportFormatter.print_banner')
+    @patch('metrics_and_reports.ReportFormatter.display_analysis_results')
+    def test_run_dry_run_mode(self, mock_display, mock_banner, mock_validate):
         """Test dry run mode"""
         mock_validate.return_value = Path(self.test_script)
         
-        result = self.cli.run([self.test_script, "--dry-run"])
+        # Mock the fixer's analyze method
+        with patch.object(self.cli.fixer, 'analyze_potential_fixes', return_value={'errors_found': []}):
+            result = self.cli.run([self.test_script, "--dry-run"])
         
         self.assertEqual(result, 0)
-        mock_banner.assert_called_once()
-        mock_summary.assert_not_called()  # No summary in dry run
+        mock_banner.assert_called_once_with(quiet_mode=False)
+        mock_display.assert_called_once()
     
     @patch.object(AutoFixCLI, 'validate_script_path')
-    @patch.object(AutoFixCLI, 'print_banner')
-    @patch.object(AutoFixCLI, 'print_summary')
-    def test_run_quiet_mode(self, mock_summary, mock_banner, mock_validate):
+    def test_run_quiet_mode(self, mock_validate):
         """Test quiet mode"""
         mock_validate.return_value = Path(self.test_script)
         
         # Mock the fixer to return success
         with patch.object(self.cli.fixer, 'run_script_with_fixes', return_value=True):
-            result = self.cli.run([self.test_script, "--quiet"])
+            with patch('metrics_and_reports.ReportFormatter.print_banner') as mock_banner:
+                with patch('metrics_and_reports.ReportFormatter.print_summary') as mock_summary:
+                    result = self.cli.run([self.test_script, "--quiet"])
         
         self.assertEqual(result, 0)
         mock_banner.assert_not_called()  # No banner in quiet mode

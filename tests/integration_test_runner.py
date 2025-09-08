@@ -26,7 +26,7 @@ class TestResult:
 class IntegrationTestRunner:
     """Runs AutoFix CLI against test files and validates results"""
     
-    def __init__(self, test_dir: str = "."):
+    def __init__(self, test_dir: str = "tests"):
         self.test_dir = Path(test_dir)
         self.results: List[TestResult] = []
         
@@ -63,13 +63,13 @@ class IntegrationTestRunner:
         
         try:
             # Run AutoFix CLI with timeout
-            cmd = [sys.executable, "-m", "autofix.cli", str(test_file), "--quiet"]
+            cmd = [sys.executable, "../cli.py", str(test_file), "--quiet"]
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout
-                cwd=self.test_dir
+                cwd=str(self.test_dir)
             )
             
             # Determine success based on exit code

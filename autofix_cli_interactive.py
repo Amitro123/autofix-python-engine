@@ -846,10 +846,26 @@ def main():
     """Main entry point with command-line argument parsing"""
     parser = argparse.ArgumentParser(description="AutoFix Interactive CLI")
     parser.add_argument("script_path", help="Path to the Python script to fix")
-    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of fix retry attempts (default: 3)")
-    parser.add_argument("--auto-fix", action="store_true", help="Automatically apply fixes without asking for confirmation")
+    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of fix retry attempts")
+    parser.add_argument("--auto-fix", action="store_true", help="Automatically apply fixes")
+    
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress output")
+
+
     
     args = parser.parse_args()
+
+    if args.quiet:
+        import logging
+        logging.getLogger().setLevel(logging.ERROR)
+    elif args.verbose >= 2:
+        import logging  
+        logging.getLogger().setLevel(logging.DEBUG)
+    elif args.verbose >= 1:
+        import logging
+        logging.getLogger().setLevel(logging.INFO)
+
     
     fixer = AutoFixer()
     success = fixer.process_script(args.script_path, max_retries=args.max_retries, auto_fix=args.auto_fix)

@@ -132,9 +132,6 @@ Examples:
         
         return path.resolve()
     
-    def print_summary(self, script_path: str, success: bool):
-        """Print execution summary - delegates to formatter"""
-        self.formatter.print_summary(script_path, success)
     
     def run(self, args: Optional[list] = None) -> int:
         """Main CLI entry point"""
@@ -186,7 +183,7 @@ Examples:
                 
                 # Print summary
                 if not parsed_args.quiet:
-                    self.print_summary(str(script_path), success)
+                    self.formatter.print_summary(str(script_path), success)
                 
                 return 0 if success else 1
             

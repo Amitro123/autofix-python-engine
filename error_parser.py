@@ -40,6 +40,66 @@ class ErrorParser:
         self.logger = get_logger("error_parser")
         self.error_cache = {}
     
+    def parse_error(self, error_output: str) -> ParsedError:
+        """Parse error output string into structured error information"""
+        # Extract error type and message from stderr
+        lines = error_output.strip().split('\n')
+        error_line = None
+        
+        # Find the actual error line (usually the last line)
+        for line in reversed(lines):
+            if ':' in line and any(err_type in line for err_type in [
+                'Error', 'Exception', 'Warning'
+            ]):
+                error_line = line
+                break
+        
+        if not error_line:
+            return ParsedError(
+                error_type="UnknownError",
+                error_message=error_output
+            )
+        
+        # Parse error type and message
+        if ':' in error_line:
+            error_type, error_message = error_line.split(':', 1)
+            error_type = error_type.strip()
+            error_message = error_message.strip()
+        else:
+            error_type = "UnknownError"
+            error_message = error_line
+        
+        # Extract file path and line number from traceback
+        file_path = None
+        line_number = None
+        
+        for line in lines:
+            if 'File "' in line and 'line ' in line:
+                # Extract file path
+                file_match = re.search(r'File "([^"]+)"', line)
+                if file_match:
+                    file_path = file_match.group(1)
+                
+                # Extract line number
+                line_match = re.search(r'line (\d+)', line)
+                if line_match:
+                    line_number = int(line_match.group(1))
+        
+        # Handle specific error types
+        missing_module = None
+        if error_type == "ModuleNotFoundError":
+            module_match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_message)
+            if module_match:
+                missing_module = module_match.group(1)
+        
+        return ParsedError(
+            error_type=error_type,
+            error_message=error_message,
+            file_path=file_path,
+            line_number=line_number,
+            missing_module=missing_module
+        )
+
     def parse_exception(self, exception: Exception, script_path: str) -> ParsedError:
         """Parse an exception object into structured error information with caching"""
         # Create cache key including script path for context-aware caching
