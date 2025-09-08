@@ -69,7 +69,16 @@ class FixStats:
         self.attempts: List[FixAttempt] = []
         self.durations = defaultdict(list)
         self.enable_firestore = enable_firestore
-        self.metrics_collector = get_metrics_collector() if enable_firestore else None
+
+        if enable_firestore:
+            try:
+                from .firestore_client import get_metrics_collector  # Import עדכני
+                self.metrics_collector = get_metrics_collector()
+            except ImportError:
+                self.metrics_collector = None
+                self.enable_firestore = False
+        else:
+            self.metrics_collector = None
     
     def record(self, outcome: str, operation: str = "fix", duration: float = 0.0, 
                  error_type: Optional[str] = None, details: Optional[str] = None,
@@ -234,5 +243,52 @@ def record_session_end(script_path: str, total_fixes: int = 0, success: bool = F
         message=f"AutoFix session ended - {'Success' if success else 'Failed'}",
         fix_attempts=total_fixes
     )
+
+
+class ReportFormatter:
+    """Handles formatting and display of AutoFix reports and analysis results"""
+    
+    def __init__(self, logger=None):
+        self.logger = logger or logging.getLogger(__name__)
+    
+    def display_analysis_results(self, results: dict):
+        """Display formatted analysis results"""
+        print("\n" + "=" * 60)
+        print("🔍 ANALYSIS RESULTS")
+        print("=" * 60)
+        
+        if results.get('errors_found'):
+            print(f"\n📋 Found {len(results['errors_found'])} potential issue(s):")
+            
+            for i, error in enumerate(results['errors_found'], 1):
+                print(f"\n{i}. {error['type']}: {error['message']}")
+                if error.get('suggested_fixes'):
+                    print("   💡 Suggested fixes:")
+                    for fix in error['suggested_fixes']:
+                        print(f"      • {fix}")
+                if error.get('file_path'):
+                    print(f"   📁 File: {error['file_path']}")
+                if error.get('line_number'):
+                    print(f"   📍 Line: {error['line_number']}")
+        else:
+            print("\n✅ No issues detected - script should run without problems!")
+        
+        print("\n" + "=" * 60)
+        print("💡 Run without --dry-run to apply fixes automatically")
+        print("=" * 60)
+    
+    def print_banner(self, quiet_mode: bool = False):
+        """Print AutoFix banner"""
+        if not quiet_mode:
+            self.logger.info("AutoFix v1.0.0 - Python Error Fixer")
+            self.logger.info("=" * 40)
+    
+    def print_summary(self, script_path: str, success: bool):
+        """Print execution summary"""
+        status = "SUCCESS" if success else "FAILED"
+        self.logger.info(f"\n{'=' * 50}")
+        self.logger.info(f"AutoFix Summary: {status}")
+        self.logger.info(f"Script: {script_path}")
+        self.logger.info(f"{'=' * 50}")
 
 

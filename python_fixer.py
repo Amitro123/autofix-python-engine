@@ -19,12 +19,16 @@ import runpy
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Callable
 
 from error_parser import ErrorParser, ParsedError
 from logging_utils import get_logger
-
+from import_suggestions import (
+    IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
+    KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
+)
 
 class PythonFixer:
     """Core Python error fixing functionality"""
@@ -33,166 +37,45 @@ class PythonFixer:
         self.config = config or {}
         self.auto_install = self.config.get('auto_install', True)
         self.create_files = self.config.get('create_files', True)
-        self.max_recursion_depth = self.config.get('max_retries', 3)
+        self.max_retries = self.config.get('max_retries', 3)
         self.error_parser = ErrorParser()
         self.logger = get_logger("python_fixer")
         self.dry_run = self.config.get('dry_run', False)
             
-        # Simple import suggestions (one option per function)
-        self.import_suggestions = {
-            "sleep": "from time import sleep",
-            "time": "import time",
-            "datetime": "from datetime import datetime",
-            "timedelta": "from datetime import timedelta",
-            "date": "from datetime import date",
-            "json": "import json",
-            "os": "import os",
-            "sys": "import sys",
-            "random": "import random",
-            "math": "import math",
-            "DataFrame": "import pandas as pd",
-            "array": "import numpy as np",
-            "plt": "import matplotlib.pyplot as plt",
-            
-            # Collections
-            "defaultdict": "from collections import defaultdict",
-            "Counter": "from collections import Counter",
-            "OrderedDict": "from collections import OrderedDict",
-            "namedtuple": "from collections import namedtuple",
-            "deque": "from collections import deque",
-            
-            # File system and paths
-            "Path": "from pathlib import Path",
-            "glob": "import glob",
-            "shutil": "import shutil",
-            "tempfile": "import tempfile",
-            
-            # System and process
-            "subprocess": "import subprocess",
-            "platform": "import platform",
-            
-            # Concurrency
-            "threading": "import threading",
-            "multiprocessing": "import multiprocessing",
-            "asyncio": "import asyncio",
-            
-            # Data serialization
-            "pickle": "import pickle",
-            "csv": "import csv",
-            "xml": "import xml",
-            
-            # Database
-            "sqlite3": "import sqlite3",
-            
-            # Network and web
-            "urllib": "import urllib",
-            "http": "import http",
-            "socket": "import socket",
-            
-            # Cryptography and encoding
-            "hashlib": "import hashlib",
-            "base64": "import base64",
-            "uuid": "import uuid",
-            "secrets": "import secrets",
-            
-            # Utilities
-            "logging": "import logging",
-            "argparse": "import argparse",
-            "configparser": "import configparser",
-            "itertools": "import itertools",
-            "functools": "import functools",
-            "operator": "import operator",
-            "warnings": "import warnings",
-            "traceback": "import traceback",
-            "copy": "import copy",
-            "re": "import re",
-            "string": "import string",
-            
-            # Math and statistics
-            "math": "import math",
-            "statistics": "import statistics",
-            "decimal": "import decimal",
-            "fractions": "import fractions",
-        }
+        # Import suggestions from external configuration
+        self.import_suggestions = IMPORT_SUGGESTIONS
         
-        # Python standard library modules for checking if a module is built-in
-        self.stdlib_modules = {
-            'abc', 'aifc', 'argparse', 'array', 'ast', 'asynchat', 'asyncio', 'asyncore',
-            'atexit', 'audioop', 'base64', 'bdb', 'binascii', 'binhex', 'bisect', 'builtins',
-            'bz2', 'calendar', 'cgi', 'cgitb', 'chunk', 'cmath', 'cmd', 'code', 'codecs',
-            'codeop', 'collections', 'colorsys', 'compileall', 'concurrent', 'configparser',
-            'contextlib', 'copy', 'copyreg', 'cProfile', 'crypt', 'csv', 'ctypes', 'curses',
-            'datetime', 'dbm', 'decimal', 'difflib', 'dis', 'distutils', 'doctest', 'email',
-            'encodings', 'ensurepip', 'enum', 'errno', 'faulthandler', 'fcntl', 'filecmp',
-            'fileinput', 'fnmatch', 'formatter', 'fractions', 'ftplib', 'functools', 'gc',
-            'getopt', 'getpass', 'gettext', 'glob', 'grp', 'gzip', 'hashlib', 'heapq',
-            'hmac', 'html', 'http', 'imaplib', 'imghdr', 'imp', 'importlib', 'inspect',
-            'io', 'ipaddress', 'itertools', 'json', 'keyword', 'lib2to3', 'linecache',
-            'locale', 'logging', 'lzma', 'mailbox', 'mailcap', 'marshal', 'math', 'mimetypes',
-            'mmap', 'modulefinder', 'multiprocessing', 'netrc', 'nntplib', 'numbers', 'operator',
-            'optparse', 'os', 'ossaudiodev', 'parser', 'pathlib', 'pdb', 'pickle', 'pickletools',
-            'pipes', 'pkgutil', 'platform', 'plistlib', 'poplib', 'posix', 'pprint', 'profile',
-            'pstats', 'pty', 'pwd', 'py_compile', 'pyclbr', 'pydoc', 'queue', 'quopri',
-            'random', 're', 'readline', 'reprlib', 'resource', 'rlcompleter', 'runpy',
-            'sched', 'secrets', 'select', 'selectors', 'shelve', 'shlex', 'shutil', 'signal',
-            'site', 'smtpd', 'smtplib', 'sndhdr', 'socket', 'socketserver', 'sqlite3',
-            'ssl', 'stat', 'statistics', 'string', 'stringprep', 'struct', 'subprocess',
-            'sunau', 'symbol', 'symtable', 'sys', 'sysconfig', 'tabnanny', 'tarfile',
-            'telnetlib', 'tempfile', 'termios', 'test', 'textwrap', 'threading', 'time',
-            'timeit', 'tkinter', 'token', 'tokenize', 'trace', 'traceback', 'tracemalloc',
-            'tty', 'turtle', 'types', 'typing', 'unicodedata', 'unittest', 'urllib',
-            'uu', 'uuid', 'venv', 'warnings', 'wave', 'weakref', 'webbrowser', 'winreg',
-            'winsound', 'wsgiref', 'xdrlib', 'xml', 'xmlrpc', 'zipapp', 'zipfile', 'zipimport', 'zlib'
-        }
+        # Standard library modules from external configuration
+        self.stdlib_modules = STDLIB_MODULES
         
-        # Multiple import suggestions for ambiguous functions
-        self.multi_import_suggestions = {
-            "dump": [
-                "import json  # for json.dump",
-                "import pickle  # for pickle.dump",
-            ],
-            "load": [
-                "import json  # for json.load",
-                "import pickle  # for pickle.load",
-            ],
-            "dumps": [
-                "import json  # for json.dumps",
-                "import pickle  # for pickle.dumps",
-            ],
-            "loads": [
-                "import json  # for json.loads",
-                "import pickle  # for pickle.loads",
-            ],
-        }
+        # Multiple import suggestions from external configuration
+        self.multi_import_suggestions = MULTI_IMPORT_SUGGESTIONS
         
         # Common function imports (alias for backward compatibility)
         self.common_imports = self.import_suggestions
         
-        # Known pip packages for common modules
-        self.known_pip_packages = {
-            "requests", "numpy", "pandas", "matplotlib", "scipy", "sklearn",
-            "tensorflow", "torch", "flask", "django", "fastapi", "sqlalchemy",
-            "psycopg2", "pymongo", "redis", "celery", "pytest", "black",
-            "flake8", "mypy", "pydantic", "click", "typer", "rich", "tqdm",
-            "pillow", "opencv-python", "beautifulsoup4", "lxml", "selenium",
-            "openpyxl", "xlsxwriter", "python-dateutil", "pytz", "arrow",
-            "cryptography", "bcrypt", "jwt", "passlib", "httpx", "aiohttp",
-            "uvicorn", "gunicorn", "streamlit", "dash", "plotly", "seaborn",
-            "statsmodels", "networkx", "sympy", "nltk", "spacy", "transformers"
-        }
+        # Known pip packages from external configuration
+        self.known_pip_packages = KNOWN_PIP_PACKAGES
         
-        # Math functions that need special import
-        self.math_functions = {
-            "sqrt", "sin", "cos", "tan", "log", "exp", "pow", "ceil", "floor", "abs"
-        }
+        # Math functions from external configuration
+        self.math_functions = MATH_FUNCTIONS
     
-    def analyze_potential_fixes(self, script_path: str) -> None:
+    def analyze_potential_fixes(self, script_path: str) -> dict:
         """
         Analyze a script and identify potential fixes without making changes
         
         Args:
             script_path: Path to the Python script to analyze
+            
+        Returns:
+            dict: Analysis results with errors found and suggested fixes
         """
+        results = {
+            'script_path': script_path,
+            'errors_found': [],
+            'analysis_complete': True
+        }
+        
         try:
             self.logger.info(f"Analyzing script for potential fixes: {script_path}")
             
@@ -200,6 +83,7 @@ class PythonFixer:
             import runpy
             runpy.run_path(script_path, run_name="__main__")
             self.logger.info("Script runs without errors - no fixes needed")
+            return results
             
         except Exception as e:
             self.logger.info(f"Found error that would be fixed: {type(e).__name__}: {e}")
@@ -207,34 +91,45 @@ class PythonFixer:
             # Parse the error to show what fix would be applied
             parsed_error = self.error_parser.parse_exception(e, script_path)
             
+            error_info = {
+                'type': parsed_error.error_type,
+                'message': str(e),
+                'file_path': parsed_error.file_path,
+                'line_number': parsed_error.line_number,
+                'suggested_fixes': []
+            }
+            
             if parsed_error.error_type == "ModuleNotFoundError":
                 if parsed_error.missing_module in self.known_pip_packages:
-                    self.logger.info(f"Would install pip package: {parsed_error.missing_module}")
+                    error_info['suggested_fixes'].append(f"Install pip package: {parsed_error.missing_module}")
                 else:
                     package_name = self._resolve_package_name(parsed_error.missing_module)
                     if package_name and package_name != parsed_error.missing_module:
-                        self.logger.info(f"Would install pip package: {package_name} (for module {parsed_error.missing_module})")
+                        error_info['suggested_fixes'].append(f"Install pip package: {package_name} (for module {parsed_error.missing_module})")
                     else:
-                        self.logger.info(f"Would create local module file: {parsed_error.missing_module}.py")
+                        error_info['suggested_fixes'].append(f"Create local module file: {parsed_error.missing_module}.py")
             
             elif parsed_error.error_type == "NameError":
                 if parsed_error.missing_function in self.common_imports:
                     import_stmt = self.common_imports[parsed_error.missing_function]
-                    self.logger.info(f"Would add import: {import_stmt}")
+                    error_info['suggested_fixes'].append(f"Add import: {import_stmt}")
                 elif parsed_error.missing_function in self.math_functions:
-                    self.logger.info(f"Would add import: from math import {parsed_error.missing_function}")
+                    error_info['suggested_fixes'].append(f"Add import: from math import {parsed_error.missing_function}")
                 else:
-                    self.logger.info(f"Would create function: {parsed_error.missing_function}()")
+                    error_info['suggested_fixes'].append(f"Create function: {parsed_error.missing_function}()")
             
             elif parsed_error.error_type == "ImportError":
                 if parsed_error.missing_function and parsed_error.missing_module:
-                    self.logger.info(f"Would add import: from {parsed_error.missing_module} import {parsed_error.missing_function}")
+                    error_info['suggested_fixes'].append(f"Add import: from {parsed_error.missing_module} import {parsed_error.missing_function}")
             
             elif parsed_error.error_type == "SyntaxError":
-                self.logger.info(f"Would attempt to fix syntax error: {parsed_error.error_message}")
+                error_info['suggested_fixes'].append("Fix syntax error automatically")
             
             else:
-                self.logger.info(f"Would attempt to fix {parsed_error.error_type}")
+                error_info['suggested_fixes'].append(f"Attempt to fix {parsed_error.error_type}")
+            
+            results['errors_found'].append(error_info)
+            return results
 
     def run_script_with_fixes(self, script_path: str, recursion_depth: int = 0) -> bool:
         """
@@ -247,9 +142,9 @@ class PythonFixer:
         Returns:
             bool: True if script executed successfully, False otherwise
         """
-        if recursion_depth > self.max_recursion_depth:
+        if recursion_depth > self.max_retries:
             self.logger.error(
-                f"Maximum recursion depth ({self.max_recursion_depth}) reached. "
+                f"Maximum recursion depth ({self.max_retries}) reached. "
                 "Stopping to prevent infinite loop."
             )
             return False
@@ -514,16 +409,7 @@ class PythonFixer:
     
     def _is_known_pip_package(self, module_name: str) -> bool:
         """Check if module is a known pip package"""
-        # Handle module aliases (e.g., cv2 -> opencv-python)
-        module_aliases = {
-            "cv2": "opencv-python",
-            "PIL": "pillow",
-            "bs4": "beautifulsoup4",
-            "yaml": "pyyaml",
-            "dateutil": "python-dateutil"
-        }
-        
-        package_name = module_aliases.get(module_name, module_name)
+        package_name = MODULE_TO_PACKAGE.get(module_name, module_name)
         return package_name in self.known_pip_packages
     
     def _install_package(self, package_name: str) -> bool:
@@ -531,16 +417,7 @@ class PythonFixer:
         try:
             self.logger.info(f"Installing package: {package_name}")
             
-            # Handle module aliases for installation
-            install_aliases = {
-                "cv2": "opencv-python",
-                "PIL": "pillow",
-                "bs4": "beautifulsoup4",
-                "yaml": "pyyaml",
-                "dateutil": "python-dateutil"
-            }
-            
-            install_name = install_aliases.get(package_name, package_name)
+            install_name = MODULE_TO_PACKAGE.get(package_name, package_name)
             
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", install_name],
@@ -807,28 +684,7 @@ def {function_name}({param_str}):
     
     def _resolve_package_name(self, module_name: str) -> Optional[str]:
         """Resolve module name to actual pip package name"""
-        # Common module name to package name mappings
-        module_to_package = {
-            "cv2": "opencv-python",
-            "PIL": "Pillow",
-            "sklearn": "scikit-learn",
-            "yaml": "PyYAML",
-            "dateutil": "python-dateutil",
-            "jwt": "PyJWT",
-            "bs4": "beautifulsoup4",
-            "psycopg2": "psycopg2-binary",
-            "MySQLdb": "mysqlclient",
-            "Image": "Pillow",
-            "requests_oauthlib": "requests-oauthlib",
-            "google.cloud": "google-cloud",
-            "tensorflow": "tensorflow",
-            "torch": "torch",
-            "torchvision": "torchvision",
-            "transformers": "transformers",
-            "huggingface_hub": "huggingface-hub",
-        }
-        
-        return module_to_package.get(module_name)
+        return MODULE_TO_PACKAGE.get(module_name)
     
     def _fix_common_syntax_issues(self, file_path: str, error_message: str) -> bool:
         """Fix common syntax issues like missing colons, parentheses, etc."""

@@ -16,9 +16,10 @@ class FixTransaction:
     and restores it if the fix fails
 
     """
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path, retain_backup: bool = False):
         self.file_path = file_path
         self.backup_path = None
+        self.retain_backup = retain_backup 
         
         
     def __enter__(self):
@@ -53,38 +54,36 @@ class FixTransaction:
             raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """
-        with block exit
-        """
+        """Exit with block - handle rollback or cleanup"""
         if exc_type:
-            # if an error occurred, perform rollback
-            logger.warning("\n-------------------------------------------")
-            logger.warning(f"error during fix. performing rollback...")
+            # Error occurred - rollback
+            logger.warning("Error during fix. Performing rollback...")
             try:
                 if self.backup_path and self.backup_path.is_file():
                     shutil.copy2(self.backup_path, self.file_path)
                     logger.info(f"Restored file from backup: {self.file_path}")
             except Exception as e:
-                logger.error(f"warning: rollback failed: {e}")
-               
-        # if no error, the fix succeeded - delete backup
-        
-        if self.backup_path and self.backup_path.is_file() and not self.retain_backup:
-                try:
-                    os.remove(self.backup_path)
-                    logger.info(f"Deleted backup: {self.backup_path}")
-                except Exception as e:
-                    logger.error(f"Failed to delete backup file: {e}")
+                logger.error(f"Rollback failed: {e}")
+            
+            # Always clean up backup after rollback
+            self._cleanup_backup()
+            return False  # Re-raise the original exception
+        else:
+            # Success - clean up backup unless retained
+            if not self.retain_backup:
+                self._cleanup_backup()
+            else:
+                logger.info(f"Backup retained: {self.backup_path}")
 
-                return False  # re-raise error to calling code
-        
-        # If no error, fix succeeded - delete backup unless retain_backup is True
-        if self.backup_path and self.backup_path.is_file() and not self.retain_backup:
+    def _cleanup_backup(self):
+        """Clean up backup file"""
+        if self.backup_path and self.backup_path.is_file():
             try:
-                logger.info(f"\nFix succeeded. Deleting backup: {self.backup_path}")
                 os.remove(self.backup_path)
+                logger.info(f"Deleted backup: {self.backup_path}")
             except Exception as e:
-                logger.error(f"Failed to delete backup file: {e}")
+                logger.error(f"Failed to delete backup: {e}")
+
 
 
 # --- examples ---

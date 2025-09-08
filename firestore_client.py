@@ -44,7 +44,6 @@ class FirestoreClient:
         """Get headers for REST API requests"""
         return {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
         }
     
     def _convert_to_firestore_value(self, value: Any) -> Dict[str, Any]:
@@ -107,8 +106,8 @@ class FirestoreClient:
             document = {"fields": fields}
             
             # Make REST API request
-            url = f"{self.base_url}/{collection_path}"
-            headers = self._get_headers()
+            url = f"{self.base_url}/{collection_path}?key={self.api_key}"
+            headers = self._get_headers() 
             
             response = requests.post(url, json=document, headers=headers, timeout=10)
             

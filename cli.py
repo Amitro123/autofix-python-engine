@@ -10,20 +10,57 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import List, Optional
 
 from python_fixer import PythonFixer
 from logging_utils import setup_logging, get_logger
+from metrics_and_reports import ReportFormatter
 
 
 class AutoFixCLI:
     """Simple command-line interface for AutoFix"""
     
-    def __init__(self):
-        self.fixer = PythonFixer()
+    def __init__(self, config_file: Optional[str] = None):
+        self.config = self._load_config(config_file) if config_file else {}
+        self.fixer = PythonFixer(config=self.config)
         self.logger = get_logger("cli")
+        self.formatter = ReportFormatter(self.logger)
+    
+    def _load_config(self, config_file: str) -> dict:
+        """Load configuration from JSON/YAML file"""
+        try:
+            config_path = Path(config_file)
+            if not config_path.exists():
+                raise FileNotFoundError(f"Config file not found: {config_file}")
+            
+            content = config_path.read_text(encoding='utf-8')
+            
+            # Try JSON first
+            if config_path.suffix.lower() == '.json':
+                return json.loads(content)
+            
+            # Try YAML if available
+            elif config_path.suffix.lower() in ['.yaml', '.yml']:
+                try:
+                    import yaml
+                    return yaml.safe_load(content)
+                except ImportError:
+                    self.logger.warning("PyYAML not installed. Falling back to JSON parsing for YAML file.")
+                    self.logger.info("To use YAML config files, install PyYAML: pip install pyyaml")
+                    # Fallback to JSON parsing - might work for simple YAML
+                    return json.loads(content)
+            
+            # Default to JSON parsing
+            else:
+                return json.loads(content)
+                
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file {config_file}: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Error loading config file {config_file}: {e}")
     
     def create_parser(self) -> argparse.ArgumentParser:
         """Create command-line argument parser"""
@@ -88,83 +125,83 @@ Examples:
         
         if not path.is_file():
             self.logger.error(f"Path is not a file: {script_path}")
-            sys.exit(1)
+            raise ValueError(f"Path is not a file: {script_path}")
         
         if path.suffix != ".py":
             self.logger.warning(f"File doesn't have .py extension: {script_path}")
         
         return path.resolve()
     
-    def print_banner(self, quiet_mode: bool = False):
-        """Print AutoFix banner"""
-        if not quiet_mode:
-            self.logger.info("AutoFix v1.0.0 - Python Error Fixer")
-            self.logger.info("=" * 40)
-    
     def print_summary(self, script_path: str, success: bool):
-        """Print execution summary"""
-        status = "SUCCESS" if success else "FAILED"
-        self.logger.info(f"\n{'=' * 50}")
-        self.logger.info(f"AutoFix Summary: {status}")
-        self.logger.info(f"Script: {script_path}")
-        self.logger.info(f"{'=' * 50}")
+        """Print execution summary - delegates to formatter"""
+        self.formatter.print_summary(script_path, success)
     
     def run(self, args: Optional[list] = None) -> int:
         """Main CLI entry point"""
-        parser = self.create_parser()
-        parsed_args = parser.parse_args(args)
-        
-        # Handle case where no script is provided
-        if not parsed_args.script_path:
-            parser.print_help()
-            return 0
-        
-        # Configure logging based on arguments
-        setup_logging(
-            verbose=parsed_args.verbose,
-            quiet=parsed_args.quiet,
-            use_colors=True
-        )
-        
-        # Update fixer configuration
-        self.fixer.max_recursion_depth = parsed_args.max_retries
-        
-        # Validate script path
         try:
-            script_path = self.validate_script_path(parsed_args.script_path)
-        except FileNotFoundError:
-            return 1
-        
-        # Print banner for non-quiet mode
-        if not parsed_args.quiet:
-            self.print_banner(quiet_mode=parsed_args.quiet)
-            self.logger.info(f"Running: {script_path}")
-            self.logger.info(f"Max retries: {parsed_args.max_retries}")
-            print("-" * 50)
-        
-        try:
-            if parsed_args.dry_run:
-                self.logger.info("DRY RUN MODE - No changes will be made")
-                try:
-                    self.fixer.analyze_potential_fixes(str(script_path))
-                except Exception as e:
-                    self.logger.info(f"Would attempt to fix: {e}")
+            parser = self.create_parser()
+            parsed_args = parser.parse_args(args)
+            
+            # Handle case where no script is provided
+            if not parsed_args.script_path:
+                parser.print_help()
                 return 0
             
-            # Run the script with automatic error fixing
-            success = self.fixer.run_script_with_fixes(str(script_path))
+            # Configure logging based on arguments
+            setup_logging(
+                verbose=parsed_args.verbose,
+                quiet=parsed_args.quiet,
+                use_colors=True
+            )
             
-            # Print summary
+            # Update fixer configuration
+            self.fixer.max_retries = parsed_args.max_retries
+            
+            # Validate script path
+            try:
+                script_path = self.validate_script_path(parsed_args.script_path)
+            except FileNotFoundError:
+                return 1
+            
+            # Print banner for non-quiet mode
             if not parsed_args.quiet:
-                self.print_summary(str(script_path), success)
+                self.formatter.print_banner(quiet_mode=parsed_args.quiet)
+                self.logger.info(f"Running: {script_path}")
+                self.logger.info(f"Max retries: {parsed_args.max_retries}")
+                print("-" * 50)
             
-            return 0 if success else 1
-        
-        except KeyboardInterrupt:
-            self.logger.info("\n[AutoFix] Interrupted by user")
-            return 130
+            try:
+                if parsed_args.dry_run:
+                    self.logger.info("🔍 DRY RUN MODE - Analyzing potential fixes...")
+                    self.fixer.config['dry_run'] = True
+                    
+                    # Show detailed analysis
+                    analysis_results = self.fixer.analyze_potential_fixes(str(script_path))
+                    if analysis_results:
+                        self.formatter.display_analysis_results(analysis_results)
+                    return 0
+                
+                # Run the script with automatic error fixing
+                success = self.fixer.run_script_with_fixes(str(script_path))
+                
+                # Print summary
+                if not parsed_args.quiet:
+                    self.print_summary(str(script_path), success)
+                
+                return 0 if success else 1
+            
+            except KeyboardInterrupt:
+                self.logger.info("\n[AutoFix] Interrupted by user")
+                return 130
+            except Exception as e:
+                self.logger.error(f"Unexpected error: {e}")
+                return 1
+                
+        except SystemExit as e:
+            # Handle argparse exits gracefully
+            return e.code if hasattr(e, 'code') else 1
         except Exception as e:
-            self.logger.error(f"Unexpected error: {e}")
+            self.logger.error(f"CLI Error: {e}", exc_info=True)
             return 1
 
 

@@ -11,7 +11,7 @@ import os
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from error_parser import ErrorParser
-from autofix_cli_interactive import fix_type_error, fix_syntax_error, fix_attribute_error
+from autofix_cli_interactive import AutoFixer, TypeErrorHandler, SyntaxErrorHandler
 
 def demo_transaction_fix():
     """Demonstrate transaction-based error fixing"""
