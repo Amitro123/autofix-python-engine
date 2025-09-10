@@ -85,7 +85,7 @@ class ModuleNotFoundHandler(ErrorHandler):
         module_name = match.group(1) if match else None
         
         line_match = re.search(r'line (\d+)', error_output)
-        line_number = int(line_match.group(1)) if line_match else None
+        line_number = int(line_match.group(1)) if line_match and line_match.group(1).isdigit() else None
         
         suggestion = self._get_advanced_suggestion(module_name) if module_name else "Check module name and installation"
         
@@ -314,7 +314,7 @@ class IndentationErrorHandler(ErrorHandler):
     
     def extract_details(self, error_output: str) -> ErrorDetails:
         line_match = re.search(r'line (\d+)', error_output)
-        line_number = int(line_match.group(1)) if line_match else None
+        line_number = int(line_match.group(1)) if line_match and line_match.group(1).isdigit() else None
         
         if "expected an indented block" in error_output:
             error_type = "missing_indentation"
@@ -367,7 +367,7 @@ class IndexErrorHandler(ErrorHandler):
     
     def extract_details(self, error_output: str) -> ErrorDetails:
         line_match = re.search(r'line (\d+)', error_output)
-        line_number = int(line_match.group(1)) if line_match else None
+        line_number = int(line_match.group(1)) if line_match and line_match.group(1).isdigit() else None
         
         # Advanced IndexError analysis
         error_type, suggestion = self._analyze_index_error(error_output)
@@ -461,7 +461,7 @@ class SyntaxErrorHandler(ErrorHandler):
     
     def extract_details(self, error_output: str) -> ErrorDetails:
         line_match = re.search(r'line (\d+)', error_output)
-        line_number = int(line_match.group(1)) if line_match else None
+        line_number = int(line_match.group(1)) if line_match and line_match.group(1).isdigit() else None
         
         # Advanced SyntaxError analysis
         error_type, suggestion = self._analyze_syntax_error(error_output)

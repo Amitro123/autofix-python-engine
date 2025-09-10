@@ -753,7 +753,7 @@ def {function_name}({param_str}):
 
             if modified:
                 new_content = '\n'.join(lines)
-                script_file.write_text(new_content, encoding="utf-8")
+                Path(file_path).write_text(new_content, encoding="utf-8")
                 return True
 
         except Exception as e:
@@ -787,7 +787,7 @@ def {function_name}({param_str}):
             # Check if any changes were made
             new_content = '\n'.join(formatted_lines)
             if new_content != content:
-                script_file.write_text(new_content, encoding="utf-8")
+                Path(file_path).write_text(new_content, encoding="utf-8")
                 self.logger.info("Applied basic formatting fixes")
                 return True
                 
@@ -826,7 +826,7 @@ def {function_name}({param_str}):
                     
                     # Write back to file
                     new_content = '\n'.join(lines)
-                    script_file.write_text(new_content, encoding="utf-8")
+                    Path(error.file_path).write_text(new_content, encoding="utf-8")
                     return True
             
             return False
@@ -864,7 +864,7 @@ Contains placeholder implementations for missing functionality
 
 def placeholder_function():
     """Auto-generated placeholder function"""
-    return "Module {module_name} created by AutoFix"
+    return f"Module {module_name} created by AutoFix"
 '''
                 module_file.write_text(module_content, encoding="utf-8")
                 return True
@@ -954,7 +954,7 @@ def placeholder_function():
             
             # Write back to file
             new_content = '\n'.join(final_lines)
-            script_file.write_text(new_content, encoding="utf-8")
+            Path(script_path).write_text(new_content, encoding="utf-8")
             
             self.logger.info(f"Successfully moved function '{function_name}' to resolve forward reference")
             return True
