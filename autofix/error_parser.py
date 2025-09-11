@@ -11,9 +11,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from .rollback import FixTransaction
 
-from .logging_utils import get_logger
+# Handle both relative and absolute imports
+try:
+    from .rollback import FixTransaction
+    from .logging_utils import get_logger
+except ImportError:
+    # Fallback for direct execution
+    from rollback import FixTransaction
+    from logging_utils import get_logger
 
 @dataclass
 class ParsedError:
@@ -266,28 +272,31 @@ class ErrorParser:
         )
     
     def _parse_syntax_error(self, exception: SyntaxError, script_path: str) -> ParsedError:
-        """Parse SyntaxError"""
         error_message = str(exception)
-        
+    
+        if "expected ':'" in error_message:
+            error_type = "missing_colon"
+        elif "invalid syntax" in error_message and ":" in error_message:
+            error_type = "missing_colon"
+        elif "unexpected EOF" in error_message:
+            error_type = "unexpected_eof"
+        else:
+            error_type = "general_syntax"
+    
         syntax_details = {
             "text": getattr(exception, 'text', None),
             "offset": getattr(exception, 'offset', None),
             "end_offset": getattr(exception, 'end_offset', None),
         }
-        
-        # Check for version-specific syntax issues
-        version_issue = self._detect_version_syntax_issue(error_message)
-        if version_issue:
-            syntax_details["version_issue"] = version_issue
-        
+    
         return ParsedError(
-            error_type="SyntaxError",
+            error_type=error_type,
             error_message=error_message,
             file_path=script_path,
             line_number=getattr(exception, 'lineno', None),
             syntax_details=syntax_details
         )
-    
+
     def _detect_version_syntax_issue(self, error_message: str) -> Optional[Dict[str, Any]]:
         """Detect Python version-specific syntax issues"""
         current_version = self.python_version

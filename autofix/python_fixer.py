@@ -22,14 +22,26 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Callable
-from .enums import ErrorType
+from .unified_syntax_handler import create_syntax_error_handler
 
-from .error_parser import ErrorParser, ParsedError
-from .logging_utils import get_logger
-from .import_suggestions import (
-    IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
-    KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
-)
+# Handle both relative and absolute imports
+try:
+    from .constants import ErrorType
+    from .error_parser import ErrorParser, ParsedError
+    from .logging_utils import get_logger
+    from .import_suggestions import (
+        IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
+        KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
+    )
+except ImportError:
+    # Fallback for direct execution
+    from autofix.constants import ErrorType
+    from error_parser import ErrorParser, ParsedError
+    from logging_utils import get_logger
+    from import_suggestions import (
+        IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
+        KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
+    )
 
 class PythonFixer:
     """Core Python error fixing functionality"""
@@ -202,7 +214,7 @@ class PythonFixer:
         """Install package only if auto_install is enabled"""
         if not self.auto_install:
             self.logger.info(f" Auto install disabled; skipping installation of {package_name}")
-            self.logger.info(f"💡 Suggestion: Run with --auto-install flag to enable automatic installation")
+            self.logger.info(f" Suggestion: Run with --auto-install flag to enable automatic installation")
             return False
         
         self.logger.info(f" Auto install enabled; installing {package_name}")
@@ -294,29 +306,7 @@ class PythonFixer:
                 return self._add_import_to_script(suggestion, error.file_path)
         
         return False
-    
-    def _fix_syntax_error(self, error: ParsedError) -> bool:
-        """Fix SyntaxError by applying common fixes and formatting"""
-        self.logger.info(f"Attempting to fix SyntaxError: {error.error_message}")
-        
-        # Try to fix common syntax issues
-        if self._fix_common_syntax_issues(error.file_path, error.error_message):
-            return True
-        
-        # Try to format the file with basic fixes
-        if self._apply_basic_formatting(error.file_path):
-            return True
-            
-        # Provide guidance for version compatibility issues
-        if error.syntax_details and "version_issue" in error.syntax_details:
-            version_issue = error.syntax_details["version_issue"]
-            self.logger.warning(
-                f"Version compatibility issue: {version_issue['feature']} "
-                f"requires Python {version_issue['required_version']}, "
-                f"but you have {version_issue['current_version']}"
-            )
-            self.logger.info(f"Suggestion: {version_issue['suggestion']}")
-        return False
+
         
     def _fix_index_error(self, error: ParsedError) -> bool:
         """Fix IndexError by adding bounds checking or safe indexing"""
@@ -700,10 +690,10 @@ def {function_name}({param_str}):
 
                 try:
                     __import__(package_name)
-                    self.logger.info(f"✅ Module '{package_name}' verified after installation")
+                    self.logger.info(f" Module '{package_name}' verified after installation")
                     return True
                 except ImportError as import_err:
-                    self.logger.warning(f"⚠️ Package {install_name} installed but module {package_name} import failed: {import_err}")
+                    self.logger.warning(f" Package {install_name} installed but module {package_name} import failed: {import_err}")
                     return False
             else:
                 self.logger.error(f"Failed to install {install_name}: {result.stderr}")
@@ -720,81 +710,20 @@ def {function_name}({param_str}):
         """Resolve module name to actual pip package name"""
         return MODULE_TO_PACKAGE.get(module_name)
 
-    def _fix_common_syntax_issues(self, file_path: str, error_message: str) -> bool:
-        """Fix common syntax issues like missing colons, parentheses, etc."""
-        try:
-            content = self._read_file_content(file_path)
-            lines = content.split('\n')
-            modified = False
-
-            # Create backup before modifying
-            self._backup_file(file_path)
-
-            # Fix missing colons after if/for/while/def/class statements
-            if "expected ':'" in error_message.lower() or ("invalid syntax" in error_message.lower() and ":" in error_message):
-                for i, line in enumerate(lines):
-                    stripped = line.strip()
-                    if (stripped.startswith(('if ', 'for ', 'while ', 'def ', 'class ', 'elif ', 'else', 'try', 'except', 'finally'))
-                        and not stripped.endswith(':') and not stripped.endswith('\\')
-                        and '#' not in stripped):
-                        lines[i] = line + ':'
-                        modified = True
-                        self.logger.info(f"Added missing colon to line {i+1}: {stripped}")
-
-            # Fix missing parentheses in print statements (Python 2 to 3)
-            if "print" in error_message.lower():
-                for i, line in enumerate(lines):
-                    if 'print ' in line and not line.strip().startswith('#'):
-                        # Simple print statement fix
-                        if not ('print(' in line):
-                            lines[i] = line.replace('print ', 'print(') + ')'
-                            modified = True
-                            self.logger.info(f"Fixed print statement on line {i+1}")
-
-            if modified:
-                new_content = '\n'.join(lines)
-                script_file.write_text(new_content, encoding="utf-8")
-                return True
-
-        except Exception as e:
-            self.logger.error(f"Error fixing syntax issues: {e}")
-
+    def _fix_syntax_error(self, error: ParsedError) -> bool:
+        """Fix SyntaxError using unified handler"""
+        handler = create_syntax_error_handler()
+        
+        if handler.can_handle(error.error_message):
+            error_type, suggestion, details = handler.analyze_error(
+                error.error_message, 
+                error.file_path
+            )
+            
+            return handler.fix_error(error.file_path, error_type, details)
+        
         return False
-    
-    def _apply_basic_formatting(self, file_path: str) -> bool:
-        """Apply basic formatting fixes to resolve syntax issues"""
-        try:
-            content = self._read_file_content(file_path)
-            
-            # Create backup before modifying
-            self._backup_file(file_path)
-            
-            # Basic formatting fixes
-            lines = content.split('\n')
-            formatted_lines = []
-            
-            for line in lines:
-                # Fix common indentation issues
-                if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                    # Check if this should be indented (simple heuristic)
-                    if any(keyword in line for keyword in ['return ', 'print(', 'pass', '=']):
-                        # Look at previous line to see if it needs indentation
-                        if formatted_lines and formatted_lines[-1].strip().endswith(':'):
-                            line = '    ' + line
-                
-                formatted_lines.append(line)
-            
-            # Check if any changes were made
-            new_content = '\n'.join(formatted_lines)
-            if new_content != content:
-                script_file.write_text(new_content, encoding="utf-8")
-                self.logger.info("Applied basic formatting fixes")
-                return True
-                
-        except Exception as e:
-            self.logger.error(f"Error applying formatting: {e}")
-            
-        return False
+
     
     def _is_likely_test_module(self, module_name: str) -> bool:
         """Detect if a module name appears to be a test/placeholder"""
@@ -817,6 +746,8 @@ def {function_name}({param_str}):
         try:
             content = self._read_file_content(error.file_path)
             lines = content.split('\n')
+
+            script_file = Path(error.file_path)
             
             # Find and comment out the problematic import
             for i, line in enumerate(lines):
@@ -905,6 +836,7 @@ def placeholder_function():
             
             # Create backup before modifying
             self._backup_file(script_path)
+            script_file = Path(script_path)
             
             # Find the function definition and extract it
             function_lines = []

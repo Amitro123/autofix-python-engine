@@ -5,7 +5,13 @@ import tempfile
 import sys
 import platform
 from pathlib import Path
-from .logging_utils import get_logger
+
+# Handle both relative and absolute imports
+try:
+    from .logging_utils import get_logger
+except ImportError:
+    # Fallback for direct execution
+    from logging_utils import get_logger
 
 logger = get_logger("rollback")
 
