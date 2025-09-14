@@ -1,7 +1,7 @@
 from enum import Enum, auto
-from typing import Final
+from typing import Final, List, Dict, Optional
+import logging
 
-#todo add more logic!!
 # ========== ERROR TYPES ==========
 class ErrorType(Enum):
     """Enumeration of error types that AutoFix can handle"""
@@ -50,14 +50,32 @@ class SyntaxErrorSubType(Enum):
     MISSING_COLON = "missing_colon"
     INCONSISTENT_INDENTATION = "inconsistent_indentation"
     UNEXPECTED_INDENT = "unexpected_indent"
-    EMPTY_LIST_POP = "empty_list_pop"
+    EMPTY_LIST_POPERROR = "empty_list_pop"
     PARENTHESES_MISMATCH = "parentheses_mismatch"
     UNEXPECTED_EOF = "unexpected_eof"
     MISSING_INDENTATION = "missing_indentation"
+    SYNTAX_UNSUPPORTED_OPERAND = "unsupported_operand"
+    NEGATIVE_INDEXING = "negative_indexing"
 
 # ========== REGEX PATTERNS ==========
 class RegexPatterns:
     """Centralized regex patterns for error fixes"""
+    MODULE_NAME = r"No module named ['\"]([^'\"]+)['\"]"
+    STRING_PLUS_NUMBER_1 = r'(["\'][^"\']*["\'])\s*\+\s*(\d+)'
+    STRING_PLUS_NUMBER_2 = r'(\d+)\s*\+\s*(["\'][^"\']*["\'])'
+    STRING_PLUS_NUMBER_3 = r'(\w+)\s*\+\s*(\d+)'
+    LIST_PLUS_STRING = r'\[\w+\]\s*\+\s*(["\'][^"\']*["\'])'
+    FOR_IN_VARIABLE = r'for\s+(\w+)\s+in\s+(\w+)(?!\[)'
+    INDEX_ACCESS = r'(\w+)\[(\d+)\]'
+    NEGATIVE_INDEXING = r'(\w+)\[(-?\d+)\]'
+    EMPTY_LIST_POP = r'(\w+)\.pop\(\)'
+    LINE_NUMBER = r'line (\d+)'
+
+    # Syntax Error Detection patterns (for classification only)
+    SYNTAX_MISSING_COLON = r"expected ':'"
+    SYNTAX_UNEXPECTED_EOF = r"unexpected EOF"
+    SYNTAX_INVALID_CHARACTER = r"invalid character"
+    SYNTAX_PARENTHESES_MISMATCH = r"[()]\s*(invalid syntax|unexpected)"
 
 
 
@@ -68,6 +86,7 @@ class FixStatus(Enum):
     FAILURE = "failure"
     CANCELED = "canceled"
     FIX_APPLIED = "fix_applied"
+    FIX_FAILED = "fix_failed"
     UNSUPPORTED_ERROR = "unsupported_error"
     MAX_RETRIES_EXCEEDED = "max_retries_exceeded"
     UNKNOWN = "unknown"
@@ -81,8 +100,46 @@ class MetadataKey(Enum):
     MODULE_NAME = "module_name"
     FUNCTION_NAME = "function_name"
 
-
 # ========== GLOBAL CONSTANTS ==========
 MAX_RETRIES: Final[int] = 3
 DEFAULT_TIMEOUT: Final[int] = 30
 BACKUP_EXTENSION: Final[str] = ".autofix.bak"
+
+# ========== ENVIRONMENT VARIABLES ==========
+
+class EnvironmentVariables:
+    DEFAULT_APP_ID: Final[str] = "autofix-default-app"
+
+# ========== ERROR MESSAGE PATTERNS ==========
+class ErrorMessagePatterns:
+    UNSUPPORTED_OPERAND = ["unsupported operand type", "can only concatenate"]
+    MISSING_ARGUMENT = ["missing", "required positional argument"]
+    NOT_ITERABLE = "not iterable"
+    NOT_SUBSCRIPTABLE = "not subscriptable"
+    NOT_CALLABLE = "not callable"
+    POSITIONAL_ARGUMENT = "positional argument"
+
+# ========== VALIDATION PATTERNS ==========
+class ValidationPatterns:
+    """Patterns for validation operations"""
+    TEST_MODULE_PATTERNS: Final[List[str]] = [
+        r'test[_\d]*',
+        r'example[_\d]*',
+        r'demo[_\d]*',
+        r'placeholder[_\d]*',
+        r'nonexistent[_\d]*',
+        r'non_existent[_\d]*',
+        r'fake[_\d]*',
+        r'dummy[_\d]*',
+        r'mock[_\d]*',
+        r'invalid[_\d]*',
+        r'sample[_\d]*'
+    ]
+
+    TEST_MODULE_INDICATORS: Final[List[str]] = [
+        "non_existent", "nonexistent", "fake", "test", 
+        "dummy", "placeholder", "example", "sample", "mock", "invalid"
+    ]
+
+
+

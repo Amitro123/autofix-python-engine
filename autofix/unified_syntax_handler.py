@@ -1,7 +1,9 @@
 """
-Unified SyntaxError Handler - Centralized syntax error fixing logic
+Unified SyntaxError Handler - Complete Final Version
+Centralized syntax error fixing logic with improved colon detection
 """
 import re
+import shutil
 from typing import Tuple, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -37,11 +39,40 @@ class UnifiedSyntaxErrorHandler:
     """
     
     def __init__(self):
+        # Control structure patterns for fixing missing colons
+        self.control_structure_patterns = [
+            r'^(\s*)(if\s+.+?)(\s*#.*)?$',           # if condition
+            r'^(\s*)(elif\s+.+?)(\s*#.*)?$',         # elif condition  
+            r'^(\s*)(else)(\s*#.*)?$',               # else
+            r'^(\s*)(for\s+.+?)(\s*#.*)?$',          # for loop
+            r'^(\s*)(while\s+.+?)(\s*#.*)?$',        # while loop
+            r'^(\s*)(class\s+\w+.*?)(\s*#.*)?$',     # class definition
+            r'^(\s*)(def\s+\w+\([^)]*\))(\s*#.*)?$', # function definition
+            r'^(\s*)(try)(\s*#.*)?$',                # try
+            r'^(\s*)(except.*?)(\s*#.*)?$',          # except
+            r'^(\s*)(finally)(\s*#.*)?$',            # finally
+            r'^(\s*)(with\s+.+?)(\s*#.*)?$'          # with statement
+        ]
+        
+        # Keyword fixes for broken keywords
         self.keyword_fixes = {
             r'\bi f\b': 'if', r'\bd ef\b': 'def', r'\bc lass\b': 'class',
             r'\be lse\b': 'else', r'\be lif\b': 'elif', r'\bf or\b': 'for',
             r'\bw hile\b': 'while', r'\bt ry\b': 'try', r'\be xcept\b': 'except',
             r'\bf rom\b': 'from', r'\bi mport\b': 'import', r'\br eturn\b': 'return'
+        }
+        
+        # Detection patterns for error classification
+        self.detection_patterns = {
+            "missing_colon": [r"expected ':'", r"invalid syntax.*:"],
+            "unexpected_eof": [r"unexpected EOF", r"EOF while scanning"],
+            "invalid_character": [r"invalid character", r"non-ASCII character"],
+            "parentheses_mismatch": [r"[()]\s*(invalid syntax|unexpected)", r"unmatched"],
+            "print_statement": [
+                r"missing parentheses in call to 'print'", 
+                r"invalid syntax.*print\s+",
+                r"print.*invalid syntax"
+            ]
         }
         
         self.fixes_registry = self._build_fixes_registry()
@@ -52,15 +83,7 @@ class UnifiedSyntaxErrorHandler:
             SyntaxErrorType.MISSING_COLON: [
                 SyntaxFix(
                     SyntaxErrorType.MISSING_COLON,
-                    r'(def\s+\w+\([^)]*\))\s*(?=[^:])',
-                    r'\1: ',
-                    description="Add missing colon after function definition"
-                ),
-                SyntaxFix(
-                    SyntaxErrorType.MISSING_COLON,
-                    r'\b(if|elif|else|for|while|class|try|except|finally|with)\s+[^:\n]*(?<![:\n])\s*$',
-                    r'\g<0>:',
-                    description="Add missing colon after control structure"
+                    description="Add missing colon after control structures (if, for, while, def, class, etc.)"
                 )
             ],
             SyntaxErrorType.PRINT_STATEMENT: [
@@ -72,7 +95,19 @@ class UnifiedSyntaxErrorHandler:
             SyntaxErrorType.BROKEN_KEYWORDS: [
                 SyntaxFix(
                     SyntaxErrorType.BROKEN_KEYWORDS,
-                    description="Fix broken keywords with spaces"
+                    description="Fix broken keywords with spaces (e.g., 'd ef' -> 'def')"
+                )
+            ],
+            SyntaxErrorType.PARENTHESES_MISMATCH: [
+                SyntaxFix(
+                    SyntaxErrorType.PARENTHESES_MISMATCH,
+                    description="Balance mismatched parentheses"
+                )
+            ],
+            SyntaxErrorType.UNEXPECTED_EOF: [
+                SyntaxFix(
+                    SyntaxErrorType.UNEXPECTED_EOF,
+                    description="Add missing closing quotes, brackets, or parentheses"
                 )
             ]
         }
@@ -103,28 +138,27 @@ class UnifiedSyntaxErrorHandler:
         return error_type, suggestion, details
     
     def _classify_syntax_error(self, error_output: str) -> Tuple[SyntaxErrorType, str]:
-        """Classify the specific type of syntax error"""
+        """Classify the specific type of syntax error using detection patterns"""
         error_output_lower = error_output.lower()
         
-        if "invalid syntax" in error_output_lower:
-            if "(" in error_output or ")" in error_output:
-                return SyntaxErrorType.PARENTHESES_MISMATCH, "Check for missing or extra parentheses"
-            elif ":" in error_output or "expected ':'" in error_output_lower:
-                return SyntaxErrorType.MISSING_COLON, "Add missing colon after control structures"
-            elif "print" in error_output_lower:
-                return SyntaxErrorType.PRINT_STATEMENT, "Convert print statement to function call"
-            else:
-                return SyntaxErrorType.GENERAL_SYNTAX, "Fix syntax error - check keywords and punctuation"
+        # Check each detection pattern
+        for error_key, patterns in self.detection_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, error_output_lower):
+                    if error_key == "missing_colon":
+                        return SyntaxErrorType.MISSING_COLON, "Add missing colon after control structures"
+                    elif error_key == "unexpected_eof":
+                        return SyntaxErrorType.UNEXPECTED_EOF, "Missing closing parentheses, brackets, or quotes"
+                    elif error_key == "invalid_character":
+                        return SyntaxErrorType.INVALID_CHARACTER, "Remove invalid characters or fix encoding issues"
+                    elif error_key == "parentheses_mismatch":
+                        return SyntaxErrorType.PARENTHESES_MISMATCH, "Check for missing or extra parentheses"
+                    elif error_key == "print_statement":
+                        return SyntaxErrorType.PRINT_STATEMENT, "Convert print statement to function call"
         
-        elif "unexpected eof" in error_output_lower:
-            return SyntaxErrorType.UNEXPECTED_EOF, "Missing closing parentheses, brackets, or quotes"
-        
-        elif "invalid character" in error_output_lower:
-            return SyntaxErrorType.INVALID_CHARACTER, "Remove invalid characters or fix encoding issues"
-        
-        elif "indentation" in error_output_lower:
+        # Fallback classifications
+        if "indentation" in error_output_lower:
             return SyntaxErrorType.INDENTATION_SYNTAX, "Fix indentation - use consistent spaces or tabs"
-        
         else:
             return SyntaxErrorType.GENERAL_SYNTAX, "Fix syntax error - check Python syntax rules"
     
@@ -135,7 +169,6 @@ class UnifiedSyntaxErrorHandler:
     
     def _check_version_compatibility(self, error_output: str) -> Optional[Dict]:
         """Check for Python version compatibility issues"""
-        # Add logic to detect version-specific syntax issues
         if "print" in error_output.lower() and "invalid syntax" in error_output.lower():
             return {
                 "feature": "print statement",
@@ -145,38 +178,50 @@ class UnifiedSyntaxErrorHandler:
             }
         return None
     
-    def fix_error(self, file_path: str, error_type: SyntaxErrorType, details: Dict) -> bool:
+    def apply_syntax_fix(self, file_path: str, error_type: SyntaxErrorType, details: Dict) -> bool:
         """
         Apply the appropriate fix based on error type
         """
         try:
+            print(f"DEBUG: Attempting to fix {error_type.value} in {file_path}")
+            
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             original_content = content
+            print(f"DEBUG: Original content length: {len(content)} chars")
             
             # Apply specific fixes based on error type
             if error_type == SyntaxErrorType.MISSING_COLON:
+                print("DEBUG: Applying missing colon fix")
                 content = self._fix_missing_colons(content, details)
             
             elif error_type == SyntaxErrorType.PARENTHESES_MISMATCH:
+                print("DEBUG: Applying parentheses mismatch fix")
                 content = self._fix_parentheses_mismatch(content)
             
             elif error_type == SyntaxErrorType.UNEXPECTED_EOF:
+                print("DEBUG: Applying unexpected EOF fix")
                 content = self._fix_unexpected_eof(content)
             
             elif error_type == SyntaxErrorType.PRINT_STATEMENT:
+                print("DEBUG: Applying print statement fix")
                 content = self._fix_print_statements(content)
             
             elif error_type == SyntaxErrorType.BROKEN_KEYWORDS:
+                print("DEBUG: Applying broken keywords fix")
                 content = self._fix_broken_keywords(content)
             
             elif error_type == SyntaxErrorType.INDENTATION_SYNTAX:
+                print("DEBUG: Applying indentation syntax fix")
                 content = self._fix_basic_indentation(content)
             
             else:
-                # Apply general fixes
+                print(f"DEBUG: Applying general fixes for {error_type.value}")
                 content = self._apply_general_fixes(content, details)
+            
+            print(f"DEBUG: Fixed content length: {len(content)} chars")
+            print(f"DEBUG: Content changed: {content != original_content}")
             
             # Write back if changes were made
             if content != original_content:
@@ -186,28 +231,45 @@ class UnifiedSyntaxErrorHandler:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 
+                print(f"Successfully applied {error_type.value} fix to {file_path}")
                 return True
-            
-            return False
+            else:
+                print(f"DEBUG: No changes made to content")
+                return False
             
         except Exception as e:
             print(f"Failed to fix syntax error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _fix_missing_colons(self, content: str, details: Dict) -> str:
-        """Fix missing colons after control structures"""
-        # Fix function definitions first
-        content = re.sub(r'(def\s+\w+\([^)]*\))\s*(?=[^:])', r'\1: ', content)
+        """Fix missing colons after control structures - IMPROVED VERSION"""
+        lines = content.split('\n')
         
-        # Fix control structures
-        content = re.sub(
-            r'\b(if|elif|else|for|while|class|try|except|finally|with)\s+[^:\n]*(?<![:\n])\s*$',
-            r'\g<0>:',
-            content,
-            flags=re.MULTILINE
-        )
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Skip empty lines and comments
+            if not stripped or stripped.startswith('#'):
+                continue
+            
+            # Check each control structure pattern
+            for pattern in self.control_structure_patterns:
+                match = re.match(pattern, line)
+                if match:
+                    indent_part = match.group(1)
+                    code_part = match.group(2)
+                    comment_part = match.group(3) if len(match.groups()) >= 3 and match.group(3) else ""
+                    
+                    # Check if colon is missing
+                    if not code_part.rstrip().endswith(':'):
+                        # Add the colon
+                        lines[i] = f"{indent_part}{code_part.rstrip()}:{comment_part}"
+                        print(f"Fixed missing colon on line {i+1}: {lines[i].strip()}")
+                    break
         
-        return content
+        return '\n'.join(lines)
     
     def _fix_parentheses_mismatch(self, content: str) -> str:
         """Basic parentheses balancing"""
@@ -219,18 +281,24 @@ class UnifiedSyntaxErrorHandler:
             
             if open_count > close_count:
                 lines[i] = line + ')' * (open_count - close_count)
+                print(f"Added {open_count - close_count} closing parentheses to line {i+1}")
             elif close_count > open_count and i > 0:
                 lines[i-1] = lines[i-1] + '(' * (close_count - open_count)
+                print(f"Added {close_count - open_count} opening parentheses to line {i}")
         
         return '\n'.join(lines)
     
     def _fix_unexpected_eof(self, content: str) -> str:
         """Add missing closing characters"""
+        original_content = content
+        
         # Fix unmatched quotes
         if content.count('"') % 2 == 1:
             content += '"'
+            print("Added missing closing double quote")
         if content.count("'") % 2 == 1:
             content += "'"
+            print("Added missing closing single quote")
         
         # Fix unmatched brackets
         bracket_pairs = [('(', ')'), ('[', ']'), ('{', '}')]
@@ -240,6 +308,7 @@ class UnifiedSyntaxErrorHandler:
             close_count = content.count(close_char)
             if open_count > close_count:
                 content += close_char * (open_count - close_count)
+                print(f"Added {open_count - close_count} closing {close_char}")
         
         return content
     
@@ -251,14 +320,21 @@ class UnifiedSyntaxErrorHandler:
             if 'print ' in line and not line.strip().startswith('#'):
                 if 'print(' not in line:
                     # Simple conversion: print x -> print(x)
+                    original_line = line
                     lines[i] = re.sub(r'print\s+([^#\n]+)', r'print(\1)', line)
+                    if lines[i] != original_line:
+                        print(f"Converted print statement to function call on line {i+1}")
         
         return '\n'.join(lines)
     
     def _fix_broken_keywords(self, content: str) -> str:
         """Fix keywords that have been broken with spaces"""
+        original_content = content
         for pattern, replacement in self.keyword_fixes.items():
             content = re.sub(pattern, replacement, content)
+        
+        if content != original_content:
+            print("Fixed broken keywords with spaces")
         
         return content
     
@@ -267,13 +343,14 @@ class UnifiedSyntaxErrorHandler:
         lines = content.split('\n')
         formatted_lines = []
         
-        for line in lines:
+        for i, line in enumerate(lines):
             if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
                 # Check if this should be indented
                 if any(keyword in line for keyword in ['return ', 'print(', 'pass', '=']):
                     # Look at previous line
                     if formatted_lines and formatted_lines[-1].strip().endswith(':'):
                         line = '    ' + line
+                        print(f"Added indentation to line {i+1}")
             
             formatted_lines.append(line)
         
@@ -281,6 +358,8 @@ class UnifiedSyntaxErrorHandler:
     
     def _apply_general_fixes(self, content: str, details: Dict) -> str:
         """Apply general syntax fixes"""
+        original_content = content
+        
         # Apply all basic fixes
         content = self._fix_broken_keywords(content)
         content = self._fix_missing_colons(content, details)
@@ -290,11 +369,12 @@ class UnifiedSyntaxErrorHandler:
     
     def _create_backup(self, file_path: str) -> None:
         """Create backup of original file"""
-        import shutil
         backup_path = f"{file_path}.backup"
         shutil.copy2(file_path, backup_path)
+        print(f"Created backup: {backup_path}")
     
     def get_error_name(self) -> str:
+        """Return the error name for this handler"""
         return "SyntaxError"
     
     def generate_fix_suggestions(self, error_type: SyntaxErrorType) -> List[str]:
@@ -323,7 +403,7 @@ handler = create_syntax_error_handler()
 
 if handler.can_handle(error_output):
     error_type, suggestion, details = handler.analyze_error(error_output, file_path)
-    success = handler.fix_error(file_path, error_type, details)
+    success = handler.apply_syntax_fix(file_path, error_type, details)
     
     if success:
         print(f"Fixed {error_type.value}: {suggestion}")

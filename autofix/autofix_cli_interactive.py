@@ -11,10 +11,11 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
 from .logging_utils import get_logger, quick_setup
+from .utils import ModuleValidation
 from .error_parser import ErrorParser, ParsedError
 try:
     from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
-    from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType
+    from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
 except ImportError:
     from unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
     from autofix.constants import ErrorType, MetadataKey, FixStatus
@@ -38,12 +39,12 @@ INDENTATION_ERROR = ErrorType.INDENTATION_ERROR
 
 
 
-SHOW_METRICS_ERRORS = os.getenv('AUTOFIX_DEBUG_METRICS', 'false').lower() == 'true'
+SHOW_METRICS_ERRORS = os.getenv('AUTOFIX_DEBUG_METRICS', 'false').lower() == 'true' #debug metrics WHERE TO SET IT?
 
 # Firebase Admin SDK for production metrics (transparent to users)
 METRICS_ENABLED = False
 metrics_collector = None
-__app_id = "autofix-default-app"
+__app_id = EnvironmentVariables.DEFAULT_APP_ID
 
 try:
     from .firestore_client import get_metrics_collector
@@ -52,12 +53,12 @@ try:
     if METRICS_ENABLED:
         __app_id = metrics_collector.app_id
     else:
-        __app_id = "autofix-default-app"
+        __app_id = EnvironmentVariables.DEFAULT_APP_ID
 
 except ImportError as e:
     metrics_collector = None  
     METRICS_ENABLED = False
-    __app_id = "autofix-default-app"
+    __app_id = EnvironmentVariables.DEFAULT_APP_ID
     logger.debug(f"Metrics disabled: {e}")
 
 
@@ -102,10 +103,10 @@ class ModuleNotFoundHandler(ErrorHandler):
     
     def extract_details(self, error_output: str) -> ErrorDetails:
         # Extract module name from "No module named 'module_name'"
-        match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_output)
+        match = re.search(RegexPatterns.MODULE_NAME, error_output)
         module_name = match.group(1) if match else None
         
-        line_match = re.search(r'line (\d+)', error_output)
+        line_match = re.search(RegexPatterns.LINE_NUMBER, error_output)
         line_number = int(line_match.group(1)) if line_match else None
         
         suggestion = self._get_advanced_suggestion(module_name) if module_name else "Check module name and installation"
@@ -124,49 +125,28 @@ class ModuleNotFoundHandler(ErrorHandler):
             return f"Install pip package: pip install {module_name}"
         
         # Check for common package name variations
-        package_name = self._resolve_package_name(module_name)
+        package_name = ModuleValidation.resolve_package_name(module_name)
         if package_name and package_name != module_name:
             return f"Install pip package: pip install {package_name} (for module {module_name})"
         
         # Check if this looks like a test module
-        if self._is_likely_test_module(module_name):
+        if ModuleValidation.is_likely_test_module(module_name):
             return f"Module '{module_name}' appears to be a test/placeholder. Consider using a real package name or creating a local module."
         
         return f"Install missing module: pip install {module_name}"
-    
-    def _resolve_package_name(self, module_name: str) -> Optional[str]:
-        """Resolve module name to actual package name"""
-        return MODULE_TO_PACKAGE.get(module_name)
 
-    def _is_likely_test_module(self, module_name: str) -> bool:
-        """Check if module name looks like a test/placeholder"""
-        test_patterns = [
-            r'test[_\d]*',
-            r'example[_\d]*',
-            r'demo[_\d]*',
-            r'placeholder[_\d]*',
-            r'nonexistent[_\d]*',
-            r'fake[_\d]*',
-            r'dummy[_\d]*'
-        ]
-        
-        for pattern in test_patterns:
-            if re.match(pattern, module_name.lower()):
-                return True
-        return False
-    
     def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
         module_name = details.extra_data.get(MetadataKey.MODULE_NAME.value)
         if not module_name:
             return False
         
         # Check if it's a test module - don't try to install
-        if self._is_likely_test_module(module_name):
+        if ModuleValidation.is_likely_test_module(module_name):
             logger.warning(f"Skipping installation of test module: {module_name}")
             return self._create_local_module(module_name, script_path)
         
         # Try to resolve package name
-        package_name = self._resolve_package_name(module_name) or module_name
+        package_name = ModuleValidation.resolve_package_name(module_name) or module_name
         
         try:
             # Try to install the package
@@ -218,7 +198,7 @@ class TypeErrorHandler(ErrorHandler):
         return TYPE_ERROR.to_string() in error_output
     
     def extract_details(self, error_output: str) -> ErrorDetails:
-        line_matches = re.findall(r'line (\d+)', error_output)
+        line_matches = re.findall(RegexPatterns.LINE_NUMBER, error_output)
         line_number = int(line_matches[-2] if len(line_matches) > 1 else line_matches[0]) if line_matches else None
         
         # Advanced TypeError pattern matching
@@ -234,11 +214,11 @@ class TypeErrorHandler(ErrorHandler):
     def _analyze_type_error(self, error_output: str) -> Tuple[str, str]:
         """Advanced analysis of TypeError patterns"""
         # Unsupported operand types
-        if "unsupported operand type" in error_output or "can only concatenate" in error_output:
-            return "unsupported_operand", "Fix type mismatch in operation (add type conversion)"
+        if ErrorMessagePatterns.UNSUPPORTED_OPERAND in error_output or ErrorMessagePatterns.UNSUPPORTED_OPERAND in error_output:
+            return SyntaxErrorSubType.SYNTAX_UNSUPPORTED_OPERAND, "Fix type mismatch in operation (add type conversion)"
         
         # Function argument issues
-        if "takes" in error_output and "positional argument" in error_output:
+        if "takes" in error_output and ErrorMessagePatterns.POSITIONAL_ARGUMENT in error_output:
             return "argument_count", "Fix function argument count mismatch"
         
         if "missing" in error_output and "required positional argument" in error_output:
@@ -290,24 +270,24 @@ class TypeErrorHandler(ErrorHandler):
         """Apply specific fixes based on error type"""
         error_type = details.error_type
         
-        if error_type == 'unsupported_operand':
+        if error_type ==  SyntaxErrorSubType.UNSUPPORTED_OPERAND.value:
             # Fix string + number concatenation
-            line = re.sub(r'(["\'][^"\']*["\'])\s*\+\s*(\d+)', r'\1 + str(\2)', line)
-            line = re.sub(r'(\d+)\s*\+\s*(["\'][^"\']*["\'])', r'str(\1) + \2', line)
-            line = re.sub(r'(\w+)\s*\+\s*(\d+)', r'\1 + str(\2)', line)
+            line = re.sub(RegexPatterns.STRING_PLUS_NUMBER_1, r'\1 + str(\2)', line)
+            line = re.sub(RegexPatterns.STRING_PLUS_NUMBER_2, r'str(\1) + \2', line)
+            line = re.sub(RegexPatterns.STRING_PLUS_NUMBER_3, r'\1 + str(\2)', line)
             
             # Fix list + string issues
-            line = re.sub(r'(\[\w+\])\s*\+\s*(["\'][^"\']*["\'])', r'\1 + [\2]', line)
+            line = re.sub(RegexPatterns.LIST_PLUS_STRING, r'\1 + [\2]', line)
         
         elif error_type == 'not_iterable':
             # Add list conversion for common cases
             if 'for' in line and 'in' in line:
                 # Convert: for x in variable -> for x in [variable] if variable is not iterable
-                line = re.sub(r'for\s+(\w+)\s+in\s+(\w+)(?!\[)', r'for \1 in [\2] if isinstance(\2, (list, tuple)) else \2', line)
+                line = re.sub(RegexPatterns.FOR_IN_VARIABLE, r'for \1 in [\2] if isinstance(\2, (list, tuple)) else \2', line)
         
         elif error_type == 'not_subscriptable':
             # Convert indexing to attribute access where appropriate
-            line = re.sub(r'(\w+)\[(\d+)\]', r'getattr(\1, "item_\2", None)', line)
+            line = re.sub(RegexPatterns.INDEX_ACCESS, r'getattr(\1, "item_\2", None)', line)
         
         return line
     
@@ -320,7 +300,7 @@ class IndentationErrorHandler(ErrorHandler):
         return INDENTATION_ERROR.to_string() in error_output
     
     def extract_details(self, error_output: str) -> ErrorDetails:
-        line_match = re.search(r'line (\d+)', error_output)
+        line_match = re.search(RegexPatterns.LINE_NUMBER, error_output)
         line_number = int(line_match.group(1)) if line_match else None
         
         if "expected an indented block" in error_output:
@@ -373,7 +353,7 @@ class IndexErrorHandler(ErrorHandler):
         return INDEX_ERROR.to_string() in error_output
     
     def extract_details(self, error_output: str) -> ErrorDetails:
-        line_match = re.search(r'line (\d+)', error_output)
+        line_match = re.search(RegexPatterns.LINE_NUMBER, error_output)
         line_number = int(line_match.group(1)) if line_match else None
         
         # Advanced IndexError analysis
@@ -427,15 +407,15 @@ class IndexErrorHandler(ErrorHandler):
         """Apply specific fixes based on IndexError type"""
         error_type = details.error_type
         
-        if error_type == "empty_list_pop":
+        if error_type == SyntaxErrorSubType.EMPTY_LIST_POPERROR.value:
             # Fix empty list pop
-            line = re.sub(r'(\w+)\.pop\(\)', r'\1.pop() if \1 else None', line)
+            line = re.sub(RegexPatterns.EMPTY_LIST_POP, r'\1.pop() if \1 else None', line)
             return line
         
         # Find sequence access patterns and add bounds checking
         access_patterns = [
-            r'(\w+)\[(\w+|\d+)\]',  # Basic indexing
-            r'(\w+)\[(-?\d+)\]',    # Negative indexing
+            RegexPatterns.INDEX_ACCESS,  # Basic indexing
+            RegexPatterns.NEGATIVE_INDEXING,    # Negative indexing
         ]
         
         for pattern in access_patterns:
@@ -474,14 +454,14 @@ class SyntaxErrorHandler(ErrorHandler):
         
         return ErrorDetails(
             error_type=error_type.value,
-            line_number=details.get("line_number"),
+            line_number=details.get(MetadataKey.LINE_NUMBER.value),
             suggestion=suggestion,
             extra_data=details
         )
     
     def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
         error_type = SyntaxErrorType(details.error_type)
-        return self.unified_handler.fix_error(script_path, error_type, details.extra_data)
+        return self.unified_handler.apply_syntax_fix(script_path, error_type, details.extra_data)
     
     def error_name(self) -> str:
         return SYNTAX_ERROR.to_string()
@@ -543,7 +523,7 @@ class AutoFixer:
     
     def find_handler(self, error_output: str) -> Optional[ErrorHandler]:
         """Find appropriate handler for the error"""
-        for handler in self.handlers:
+        for handler in self.handlers.values():
             if handler.can_handle(error_output):
                 return handler
         return None
@@ -569,7 +549,7 @@ class AutoFixer:
             fix_attempts = kwargs.get('fix_attempts', 0)
             fix_duration = kwargs.get('fix_duration', 0.0)
 
-            app_id = os.getenv('APP_ID', 'autofix-default-app')
+            app_id = os.getenv('APP_ID', EnvironmentVariables.DEFAULT_APP_ID)
             error_details['app_id'] = app_id
 
             kwargs = self._convert_bool_to_int(kwargs)
@@ -646,7 +626,7 @@ class AutoFixer:
                     "stderr": error.stderr[:500],
                     "parsed_error_type": parsed_error.error_type if parsed_error else "unknown",
                     "file_path": parsed_error.file_path if parsed_error else None,
-                    "line_number": parsed_error.line_number if parsed_error else None
+                    MetadataKey.LINE_NUMBER.value: parsed_error.line_number if parsed_error else None
                 }
                 
                 self.save_metrics(
@@ -671,7 +651,7 @@ class AutoFixer:
                 })
 
             # Enhanced user feedback with better context
-            print(f"INFO: Detected error: {handler.error_name}")
+            print(f"INFO: Detected error: {handler.error_name()}")
             print(f"INFO: {details.suggestion}")
             if details.line_number:
                 print(f"INFO: Error on line {details.line_number}")
@@ -683,7 +663,7 @@ class AutoFixer:
                 logger.info("Auto-fix enabled; automatically approving fix.")
                 print("INFO: Auto-fix enabled; automatically approving fix.")
             else:
-                user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name}? (y/n): ").strip().lower()
+                user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name()}? (y/n): ").strip().lower()
                 user_confirmed = user_input in ('y', 'yes')
 
             if not user_confirmed:
@@ -692,7 +672,7 @@ class AutoFixer:
                 
                 error_details = {
                     "error_type": details.error_type,
-                    "line_number": details.line_number,
+                    MetadataKey.LINE_NUMBER.value: details.line_number,
                     "parsed_error_type": parsed_error.error_type if parsed_error else None,
                     "confidence": parsed_error.confidence if parsed_error else None
                 }
@@ -700,22 +680,22 @@ class AutoFixer:
                 self.save_metrics(
                     script_path=script_path,
                     status=FixStatus.CANCELED.value,
-                    original_error=handler.error_name,
+                    original_error=handler.error_name(),
                     error_details=error_details,
-                    message=f"User canceled {handler.error_name} fix",
+                    message=f"User canceled {handler.error_name()} fix",
                     fix_attempts=retry_attempts
                 )
                 return False
 
-            logger.info(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
-            print(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+            logger.info(f"Attempting to fix {handler.error_name()}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+            print(f"Attempting to fix {handler.error_name()}, Attempt {retry_attempts + 1} of {max_retries + 1}")
 
             fix_successful = handler.fix_error(script_path, details)
             
             if fix_successful:
                 retry_attempts += 1
-                logger.info(f"{handler.error_name} fixed. Retrying script execution (Attempt {retry_attempts})...")
-                print(f"{handler.error_name} fixed. Retrying script execution...")
+                logger.info(f"{handler.error_name()} fixed. Retrying script execution (Attempt {retry_attempts})...")
+                print(f"{handler.error_name()} fixed. Retrying script execution...")
                 
                 duration = time.time() - start_time
                 self.save_metrics(
@@ -724,21 +704,21 @@ class AutoFixer:
                     original_error=handler.error_name,
                     error_details={
                         "error_type": details.error_type,
-                        "line_number": details.line_number,
+                        MetadataKey.LINE_NUMBER.value: details.line_number,
                         "fix_applied": "true",
                         "confidence": parsed_error.confidence if parsed_error else None
                     },
-                    message=f"Successfully applied fix for {handler.error_name}",
+                    message=f"Successfully applied fix for {handler.error_name()}",
                     fix_attempts=retry_attempts,
                     fix_duration=duration
                 )
             else:
-                logger.error(f"Failed to fix {handler.error_name} on attempt {retry_attempts + 1}.")
-                print(f"ERROR: Failed to automatically fix {handler.error_name} on attempt {retry_attempts + 1}.")
+                logger.error(f"Failed to fix {handler.error_name()} on attempt {retry_attempts + 1}.")
+                print(f"ERROR: Failed to automatically fix {handler.error_name()} on attempt {retry_attempts + 1}.")
                 
                 error_details = {
                     "error_type": details.error_type,
-                    "line_number": details.line_number,
+                    MetadataKey.LINE_NUMBER.value: details.line_number,
                     "fix_applied": "false",
                     "parsed_error_type": parsed_error.error_type if parsed_error else None,
                     "confidence": parsed_error.confidence if parsed_error else None
@@ -746,10 +726,10 @@ class AutoFixer:
                 
                 self.save_metrics(
                     script_path=script_path,
-                    status=FixStatus.FIX_FAILED.value,
-                    original_error=handler.error_name,
+                    status=FixStatus.FAILURE.value,
+                    original_error=handler.error_name(),
                     error_details=error_details,
-                    message=f"Failed to apply fix for {handler.error_name}",
+                    message=f"Failed to apply fix for {handler.error_name()}",
                     fix_attempts=retry_attempts
                 )
                 return False
@@ -761,7 +741,7 @@ class AutoFixer:
         self.save_metrics(
             script_path=script_path,
             status=FixStatus.MAX_RETRIES_EXCEEDED.value,
-            original_error=handler.error_name if 'handler' in locals() else "Unknown",
+            original_error=handler.error_name if 'handler' in locals() else FixStatus.UNKNOWN.value,
             message="Maximum retry attempts exceeded",
             fix_attempts=retry_attempts,
             fix_duration=duration

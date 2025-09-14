@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Callable
 from .unified_syntax_handler import create_syntax_error_handler
+from .utils import ModuleValidation
 
 # Handle both relative and absolute imports
 try:
@@ -111,7 +112,7 @@ class PythonFixer:
         if module in self.known_pip_packages:
             return [f"Install pip package: {module}"]
         
-        package_name = self._resolve_package_name(module)
+        package_name = ModuleValidation.resolve_package_name(module)
         if package_name and package_name != module:
             return [f"Install pip package: {package_name} (for module {module})"]
         
@@ -168,7 +169,7 @@ class PythonFixer:
             parsed_error = self.error_parser.parse_exception(e, script_path)
             
             # Attempt to fix the error
-            if self.fix_error(parsed_error):
+            if self.fix_parsed_error(parsed_error):
                 self.logger.info("Error fixed, retrying script execution...")
                 self._clear_module_cache(script_path)
                 return self.run_script_with_fixes(script_path, recursion_depth + 1)
@@ -178,7 +179,7 @@ class PythonFixer:
         finally:
             os.chdir(original_cwd)
     
-    def fix_error(self, error: ParsedError) -> bool:
+    def fix_parsed_error(self, error: ParsedError) -> bool:
         """
         Fix a parsed error based on its type
         Args:
@@ -234,13 +235,13 @@ class PythonFixer:
             return self.maybe_install_package(missing_module)
         
         # Check for common package name variations
-        package_name = self._resolve_package_name(missing_module)
+        package_name = ModuleValidation.resolve_package_name(missing_module)
         if package_name and package_name != missing_module:
             self.logger.info(f"Installing pip package: {package_name} (for module {missing_module})")
             return self.maybe_install_package(package_name)
         
         # Check if this looks like a real module name or just a test
-        if self._is_likely_test_module(missing_module):
+        if ModuleValidation.is_likely_test_module(missing_module):
             self.logger.warning(f"Module '{missing_module}' appears to be a test/placeholder name")
             self.logger.info("Recommendations:")
             self.logger.info("  1. Replace with a real package name (e.g., 'requests', 'numpy', 'pandas')")
@@ -706,10 +707,6 @@ def {function_name}({param_str}):
             self.logger.error(f"Error installing {package_name}: {e}")
             return False
 
-    def _resolve_package_name(self, module_name: str) -> Optional[str]:
-        """Resolve module name to actual pip package name"""
-        return MODULE_TO_PACKAGE.get(module_name)
-
     def _fix_syntax_error(self, error: ParsedError) -> bool:
         """Fix SyntaxError using unified handler"""
         handler = create_syntax_error_handler()
@@ -720,20 +717,9 @@ def {function_name}({param_str}):
                 error.file_path
             )
             
-            return handler.fix_error(error.file_path, error_type, details)
+            return handler.apply_syntax_fix(error.file_path, error_type, details)
         
         return False
-
-    
-    def _is_likely_test_module(self, module_name: str) -> bool:
-        """Detect if a module name appears to be a test/placeholder"""
-        test_indicators = [
-            "non_existent", "nonexistent", "fake", "test", "dummy", 
-            "placeholder", "example", "sample", "mock", "invalid"
-        ]
-        
-        module_lower = module_name.lower()
-        return any(indicator in module_lower for indicator in test_indicators)
     
     def _is_standard_library_module(self, module_name: str) -> bool:
         """Check if a module is part of Python's standard library"""
