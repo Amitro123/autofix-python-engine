@@ -13,6 +13,8 @@ class ErrorType(Enum):
     INDEX_ERROR = auto()
     TYPE_ERROR = auto()
     INDENTATION_ERROR = auto()
+    TAB_ERROR = auto()
+    UNKNOWN_ERROR = auto()
     
     @classmethod
     def from_string(cls, error_string: str):
@@ -26,6 +28,8 @@ class ErrorType(Enum):
             "IndexError": cls.INDEX_ERROR,
             "TypeError": cls.TYPE_ERROR,
             "IndentationError": cls.INDENTATION_ERROR,
+            "TabError": cls.TAB_ERROR,
+            "UnknownError": cls.UNKNOWN_ERROR,
         }
         return error_map.get(error_string)
     
@@ -40,6 +44,8 @@ class ErrorType(Enum):
             self.INDEX_ERROR: "IndexError",
             self.TYPE_ERROR: "TypeError",
             self.INDENTATION_ERROR: "IndentationError",
+            self.TAB_ERROR: "TabError",
+            self.UNKNOWN_ERROR: "UnknownError",
         }
         return string_map.get(self, "UnknownError")
 

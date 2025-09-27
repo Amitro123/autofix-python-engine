@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from rollback import FixTransaction
+from .constants import ErrorType
 
 from logging_utils import get_logger
 
@@ -56,7 +57,7 @@ class ErrorParser:
         
         if not error_line:
             return ParsedError(
-                error_type="UnknownError",
+                error_type=ErrorType.UNKNOWN_ERROR.to_string(),
                 error_message=error_output
             )
         
@@ -183,7 +184,7 @@ class ErrorParser:
         context = self._extract_context(script_path, getattr(exception, 'lineno', None))
 
         return ParsedError(
-            error_type="ModuleNotFoundError",
+            error_type=ErrorType.MODULE_NOT_FOUND.to_string(),
             error_message=str(exception),
             file_path=script_path,
             missing_module=missing_module,

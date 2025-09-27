@@ -313,19 +313,62 @@ class UnifiedSyntaxErrorHandler:
         return content
     
     def _fix_print_statements(self, content: str) -> str:
-        """Convert Python 2 print statements to Python 3"""
+        """Convert Python 2 print statements to Python 3 - FIXED VERSION"""
+        print("DEBUG: *** USING FIXED VERSION OF _fix_print_statements ***")
         lines = content.split('\n')
-        
+        changes_made = False
+    
         for i, line in enumerate(lines):
-            if 'print ' in line and not line.strip().startswith('#'):
-                if 'print(' not in line:
-                    # Simple conversion: print x -> print(x)
-                    original_line = line
-                    lines[i] = re.sub(r'print\s+([^#\n]+)', r'print(\1)', line)
-                    if lines[i] != original_line:
-                        print(f"Converted print statement to function call on line {i+1}")
-        
-        return '\n'.join(lines)
+            # Skip comment lines
+            if line.strip().startswith('#'):
+                continue
+            
+            if 'print ' in line:
+                print(f"DEBUG: Line {i+1} contains 'print ': {line}")
+            
+            # Check if the actual code part (not comment) already has print()
+            code_part = line.split('#')[0]  # Get part before comment
+            if 'print(' in code_part:
+                print("DEBUG: Code part already has print(), skipping")
+                continue
+                
+            original_line = line
+            print(f"DEBUG: Processing line {i+1}: '{original_line}'")
+            
+            # Split line into code and comment parts
+            if '#' in line:
+                code_part, comment_part = line.split('#', 1)
+                comment_part = '#' + comment_part
+            else:
+                code_part = line
+                comment_part = ""
+            
+            # Apply fix to code part only
+            fixed_code = code_part
+            
+            # Pattern 1: print "text" or print 'text'
+            fixed_code = re.sub(r'\bprint\s+"([^"]*)"', r'print("\1")', fixed_code)
+            fixed_code = re.sub(r"\bprint\s+'([^']*)'", r"print('\1')", fixed_code)
+            
+            # Pattern 2: print variable_or_expression
+            fixed_code = re.sub(r'\bprint\s+([^()"\'\n]+)', lambda m: f'print({m.group(1).rstrip()})', fixed_code)
+            
+            # Reconstruct the line
+            new_line = fixed_code + comment_part
+            
+            if new_line != original_line:
+                lines[i] = new_line
+                changes_made = True
+                print(f"DEBUG: CHANGED line {i+1}")
+                print(f"DEBUG: FROM: '{original_line}'")
+                print(f"DEBUG: TO:   '{new_line}'")
+            else:
+                print(f"DEBUG: NO CHANGE made to line {i+1}")
+    
+        result = '\n'.join(lines)
+        print(f"DEBUG: Total changes made: {changes_made}")
+    
+        return result
     
     def _fix_broken_keywords(self, content: str) -> str:
         """Fix keywords that have been broken with spaces"""

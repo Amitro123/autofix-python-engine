@@ -6,6 +6,7 @@ import threading
 import time
 import json
 import argparse
+from pathlib import Path
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
@@ -13,6 +14,8 @@ from datetime import datetime, timezone
 from .logging_utils import get_logger, quick_setup
 from .utils import ModuleValidation
 from .error_parser import ErrorParser, ParsedError
+from .python_fixer import PythonFixer
+from .module_management import PackageInstaller, ModuleCreator
 try:
     from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
     from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
@@ -36,7 +39,7 @@ ATTRIBUTE_ERROR = ErrorType.ATTRIBUTE_ERROR
 INDEX_ERROR = ErrorType.INDEX_ERROR
 TYPE_ERROR = ErrorType.TYPE_ERROR
 INDENTATION_ERROR = ErrorType.INDENTATION_ERROR
-
+TAB_ERROR = ErrorType.TAB_ERROR
 
 
 SHOW_METRICS_ERRORS = os.getenv('AUTOFIX_DEBUG_METRICS', 'false').lower() == 'true' #debug metrics WHERE TO SET IT?
@@ -98,11 +101,13 @@ class ErrorHandler(ABC):
         pass
 
 class ModuleNotFoundHandler(ErrorHandler):
+    def __init__(self):
+        self.package_installer = PackageInstaller(auto_install=True)
+    
     def can_handle(self, error_output: str) -> bool:
         return MODULE_NOT_FOUND.to_string() in error_output
     
     def extract_details(self, error_output: str) -> ErrorDetails:
-        # Extract module name from "No module named 'module_name'"
         match = re.search(RegexPatterns.MODULE_NAME, error_output)
         module_name = match.group(1) if match else None
         
@@ -119,75 +124,32 @@ class ModuleNotFoundHandler(ErrorHandler):
         )
     
     def _get_advanced_suggestion(self, module_name: str) -> str:
-        """Get sophisticated suggestion based on module name analysis"""
-        # Check if it's a known pip package
         if module_name in KNOWN_PIP_PACKAGES:
             return f"Install pip package: pip install {module_name}"
         
-        # Check for common package name variations
         package_name = ModuleValidation.resolve_package_name(module_name)
         if package_name and package_name != module_name:
             return f"Install pip package: pip install {package_name} (for module {module_name})"
         
-        # Check if this looks like a test module
         if ModuleValidation.is_likely_test_module(module_name):
             return f"Module '{module_name}' appears to be a test/placeholder. Consider using a real package name or creating a local module."
         
         return f"Install missing module: pip install {module_name}"
 
     def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
-        module_name = details.extra_data.get(MetadataKey.MODULE_NAME.value)
+        module_name = details.extra_data.get(MetadataKey.MODULE_NAME)
+        
         if not module_name:
             return False
         
-        # Check if it's a test module - don't try to install
         if ModuleValidation.is_likely_test_module(module_name):
             logger.warning(f"Skipping installation of test module: {module_name}")
-            return self._create_local_module(module_name, script_path)
+            return self.package_installer.create_local_module(module_name, script_path)
         
-        # Try to resolve package name
         package_name = ModuleValidation.resolve_package_name(module_name) or module_name
-        
-        try:
-            # Try to install the package
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", package_name],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            
-            if result.returncode == 0:
-                logger.info(f"Successfully installed {package_name}")
-                return True
-            else:
-                logger.warning(f"Failed to install {package_name}: {result.stderr}")
-                # Try creating a local module as fallback
-                return self._create_local_module(module_name, script_path)
-                
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-            logger.error(f"Error installing {package_name}: {e}")
-            return self._create_local_module(module_name, script_path)
-    
-    def _create_local_module(self, module_name: str, script_path: str) -> bool:
-        """Create a basic local module file"""
-        try:
-            script_dir = os.path.dirname(script_path)
-            module_file = os.path.join(script_dir, f"{module_name}.py")
-            
-            if not os.path.exists(module_file):
-                with open(module_file, 'w', encoding='utf-8') as f:
-                    f.write(f'"""\n{module_name} - Auto-generated module\n"""\n\n')
-                    f.write('# Add your module content here\n')
-                    f.write('pass\n')
-                
-                logger.info(f"Created local module: {module_file}")
-                return True
-            
-            return True
-        except Exception as e:
-            logger.error(f"Failed to create local module {module_name}: {e}")
-            return False
+        return self.package_installer.install_or_create_fallback(
+            package_name, module_name, script_path
+        )
     
     @property
     def error_name(self) -> str:
@@ -279,13 +241,13 @@ class TypeErrorHandler(ErrorHandler):
             # Fix list + string issues
             line = re.sub(RegexPatterns.LIST_PLUS_STRING, r'\1 + [\2]', line)
         
-        elif error_type == 'not_iterable':
+        elif error_type == SyntaxErrorSubType.NOT_ITERABLE.value:
             # Add list conversion for common cases
             if 'for' in line and 'in' in line:
                 # Convert: for x in variable -> for x in [variable] if variable is not iterable
                 line = re.sub(RegexPatterns.FOR_IN_VARIABLE, r'for \1 in [\2] if isinstance(\2, (list, tuple)) else \2', line)
         
-        elif error_type == 'not_subscriptable':
+        elif error_type == SyntaxErrorSubType.NOT_SUBSCRIPTABLE.value:
             # Convert indexing to attribute access where appropriate
             line = re.sub(RegexPatterns.INDEX_ACCESS, r'getattr(\1, "item_\2", None)', line)
         
@@ -347,6 +309,57 @@ class IndentationErrorHandler(ErrorHandler):
     @property
     def error_name(self) -> str:
         return INDENTATION_ERROR.to_string()
+
+class TabErrorHandler(ErrorHandler):
+    def can_handle(self, error_output: str) -> bool:
+        return "TabError" in error_output or "inconsistent use of tabs and spaces" in error_output
+    
+    @property
+    def error_name(self) -> str:
+        return "TabError"
+    
+    def description(self) -> str:
+        return "Convert tabs to spaces for consistent indentation"
+    
+    def extract_details(self, error_output: str) -> ErrorDetails:
+        """Extract details from TabError output"""
+        line_number = None
+    
+        # Parse line number from error message
+        import re
+        line_match = re.search(r'line (\d+)', error_output)
+        if line_match:
+            line_number = int(line_match.group(1))
+    
+        return ErrorDetails(
+            error_type=ErrorType.TAB_ERROR.value,
+            line_number=line_number,
+            suggestion="Convert tabs to spaces for consistent indentation",
+            extra_data={}
+        )
+    
+    def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
+        """Convert tabs to spaces"""
+        try:
+            content = Path(script_path).read_text(encoding='utf-8')
+            fixed_content = content.expandtabs(4)  # Convert tabs to 4 spaces
+            
+            if content != fixed_content:
+                # Create backup
+                backup_path = f"{script_path}.backup"
+                Path(backup_path).write_text(content, encoding='utf-8')
+                
+                # Write fixed content
+                Path(script_path).write_text(fixed_content, encoding='utf-8')
+                logger.info(f"Converted tabs to spaces in {script_path}")
+                return True
+            
+            return False
+                
+        except Exception as e:
+            logger.error(f"Failed to fix TabError: {e}")
+            return False
+
 
 class IndexErrorHandler(ErrorHandler):
     def can_handle(self, error_output: str) -> bool:
@@ -475,7 +488,8 @@ class AutoFixer:
             TYPE_ERROR: TypeErrorHandler(),
             INDENTATION_ERROR: IndentationErrorHandler(),
             INDEX_ERROR: IndexErrorHandler(),
-            SYNTAX_ERROR: SyntaxErrorHandler()
+            SYNTAX_ERROR: SyntaxErrorHandler(),
+            TAB_ERROR: TabErrorHandler()
         }
         self.error_parser = ErrorParser()
         self.import_suggestions = IMPORT_SUGGESTIONS
@@ -651,7 +665,7 @@ class AutoFixer:
                 })
 
             # Enhanced user feedback with better context
-            print(f"INFO: Detected error: {handler.error_name()}")
+            print(f"INFO: Detected error: {handler.error_name}")
             print(f"INFO: {details.suggestion}")
             if details.line_number:
                 print(f"INFO: Error on line {details.line_number}")
@@ -663,7 +677,7 @@ class AutoFixer:
                 logger.info("Auto-fix enabled; automatically approving fix.")
                 print("INFO: Auto-fix enabled; automatically approving fix.")
             else:
-                user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name()}? (y/n): ").strip().lower()
+                user_input = input(f"ACTION REQUIRED: Fix the {handler.error_name}? (y/n): ").strip().lower()
                 user_confirmed = user_input in ('y', 'yes')
 
             if not user_confirmed:
@@ -680,22 +694,22 @@ class AutoFixer:
                 self.save_metrics(
                     script_path=script_path,
                     status=FixStatus.CANCELED.value,
-                    original_error=handler.error_name(),
+                    original_error=handler.error_name,
                     error_details=error_details,
-                    message=f"User canceled {handler.error_name()} fix",
+                    message=f"User canceled {handler.error_name} fix",
                     fix_attempts=retry_attempts
                 )
                 return False
 
-            logger.info(f"Attempting to fix {handler.error_name()}, Attempt {retry_attempts + 1} of {max_retries + 1}")
-            print(f"Attempting to fix {handler.error_name()}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+            logger.info(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
+            print(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
 
             fix_successful = handler.fix_error(script_path, details)
             
             if fix_successful:
                 retry_attempts += 1
-                logger.info(f"{handler.error_name()} fixed. Retrying script execution (Attempt {retry_attempts})...")
-                print(f"{handler.error_name()} fixed. Retrying script execution...")
+                logger.info(f"{handler.error_name} fixed. Retrying script execution (Attempt {retry_attempts})...")
+                print(f"{handler.error_name} fixed. Retrying script execution...")
                 
                 duration = time.time() - start_time
                 self.save_metrics(
@@ -708,13 +722,13 @@ class AutoFixer:
                         "fix_applied": "true",
                         "confidence": parsed_error.confidence if parsed_error else None
                     },
-                    message=f"Successfully applied fix for {handler.error_name()}",
+                    message=f"Successfully applied fix for {handler.error_name}",
                     fix_attempts=retry_attempts,
                     fix_duration=duration
                 )
             else:
-                logger.error(f"Failed to fix {handler.error_name()} on attempt {retry_attempts + 1}.")
-                print(f"ERROR: Failed to automatically fix {handler.error_name()} on attempt {retry_attempts + 1}.")
+                logger.error(f"Failed to fix {handler.error_name} on attempt {retry_attempts + 1}.")
+                print(f"ERROR: Failed to automatically fix {handler.error_name} on attempt {retry_attempts + 1}.")
                 
                 error_details = {
                     "error_type": details.error_type,
@@ -727,9 +741,9 @@ class AutoFixer:
                 self.save_metrics(
                     script_path=script_path,
                     status=FixStatus.FAILURE.value,
-                    original_error=handler.error_name(),
+                    original_error=handler.error_name,
                     error_details=error_details,
-                    message=f"Failed to apply fix for {handler.error_name()}",
+                    message=f"Failed to apply fix for {handler.error_name}",
                     fix_attempts=retry_attempts
                 )
                 return False
@@ -752,7 +766,21 @@ def main():
     """Main entry point with command-line argument parsing"""
     parser = create_parser()
     args = parser.parse_args()
+
+    config = {
+        'interactive': True,
+        'auto_install': args.auto_install,
+        'max_retries': args.max_retries,
+        'create_files': True,
+        'dry_run': False
+    }
     
+    fixer = PythonFixer(config=config)
+
+    success = fixer.run_script_with_fixes(args.script_path)
+
+    sys.exit(0 if success else 1)
+
     # Handle no script path
     if not args.script_path:
         parser.print_help()
