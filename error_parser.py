@@ -11,10 +11,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from rollback import FixTransaction
-from .constants import ErrorType
+from autofix.rollback import FixTransaction
+from autofix.constants import ErrorType
 
-from logging_utils import get_logger
+from autofix.logging_utils import get_logger
 
 @dataclass
 class ParsedError:
@@ -122,7 +122,7 @@ class ErrorParser:
         context = self._extract_context(script_path, line_number)
         
         if isinstance(exception, ModuleNotFoundError):
-            return self._parse_module_not_found(exception, script_path)
+            return self._parse_module_not_found(exception, script_path, line_number, context)
         elif isinstance(exception, ImportError):
             return self._parse_import_error(exception, script_path)
         elif isinstance(exception, NameError):
@@ -176,17 +176,16 @@ class ErrorParser:
             return None   
 
     
-    def _parse_module_not_found(self, exception: ModuleNotFoundError, script_path: str) -> ParsedError:
+    def _parse_module_not_found(self, exception: ModuleNotFoundError, script_path: str, line_number: Optional[int], context: Optional[List[str]]) -> ParsedError:
         """Parse ModuleNotFoundError"""
         missing_module = exception.name
         suggested_fix = f"pip install {missing_module}"
-
-        context = self._extract_context(script_path, getattr(exception, 'lineno', None))
 
         return ParsedError(
             error_type=ErrorType.MODULE_NOT_FOUND.to_string(),
             error_message=str(exception),
             file_path=script_path,
+            line_number=line_number,
             missing_module=missing_module,
             suggested_fix=suggested_fix,
             confidence=0.8,
