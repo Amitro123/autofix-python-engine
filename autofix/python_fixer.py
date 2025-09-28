@@ -22,7 +22,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Callable
-from .unified_syntax_handler import create_syntax_error_handler
+from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
 from .utils import ModuleValidation
 
 # Handle both relative and absolute imports
@@ -99,7 +99,7 @@ class PythonFixer:
             return self._suggest_name_fixes(error.missing_function)
         elif error_type == ErrorType.IMPORT_ERROR:
             return self._suggest_import_fixes(error.missing_function, error.missing_module)
-        elif error_type == ErrorType.SYNTAX_ERROR:
+        elif error_type == ErrorType.SYNTAX_ERROR or error.error_type in [st.value for st in SyntaxErrorType] or error.error_type == "IndentationError" or error.error_type == "TabError":
             return ["Fix syntax error automatically"]
         else:
             return [f"Attempt to fix {error.error_type}"]
@@ -169,12 +169,16 @@ class PythonFixer:
             parsed_error = self.error_parser.parse_exception(e, script_path)
             
             # Attempt to fix the error
-            if self.fix_parsed_error(parsed_error):
+            fix_succeeded = self.fix_parsed_error(parsed_error)
+
+            if fix_succeeded:
                 self.logger.info("Error fixed, retrying script execution...")
                 self._clear_module_cache(script_path)
                 return self.run_script_with_fixes(script_path, recursion_depth + 1)
             else:
-                self.logger.error(f"Could not auto-resolve {parsed_error.error_type}")
+                # Check for the specific case of a gracefully handled general syntax error
+                if parsed_error.error_type != "general_syntax":
+                    self.logger.error(f"Could not auto-resolve {parsed_error.error_type}")
                 return False
         finally:
             os.chdir(original_cwd)
@@ -187,12 +191,20 @@ class PythonFixer:
         Returns:
             bool: True if error was fixed, False otherwise
         """
-        # Convert string error type to enum
-        error_type = ErrorType.from_string(error.error_type)
+        error_type_str = error.error_type
+        error_type = ErrorType.from_string(error_type_str)
+
+        # Handle syntax error subtypes that are not in the main ErrorType enum
+        syntax_subtypes = [subtype.value for subtype in SyntaxErrorType]
+        if error_type_str in syntax_subtypes:
+            error_type = ErrorType.SYNTAX_ERROR
         
         if not error_type:
-            self.logger.warning(f"Unknown error type: {error.error_type}")
-            return False
+            if "SyntaxError" in error.error_message or error_type_str == "IndentationError" or error_type_str == "TabError":
+                 error_type = ErrorType.SYNTAX_ERROR
+            else:
+                self.logger.warning(f"Unknown error type: {error_type_str}")
+                return False
 
         # Use enum-based dispatch
         if error_type == ErrorType.MODULE_NOT_FOUND:
@@ -204,7 +216,7 @@ class PythonFixer:
         elif error_type == ErrorType.ATTRIBUTE_ERROR:
             return self._fix_attribute_error(error)
         elif error_type == ErrorType.SYNTAX_ERROR:
-            return self._fix_syntax_error(error)
+             return self._fix_syntax_error(error)
         elif error_type == ErrorType.INDEX_ERROR:
             return self._fix_index_error(error)
         else:
@@ -709,15 +721,16 @@ def {function_name}({param_str}):
 
     def _fix_syntax_error(self, error: ParsedError) -> bool:
         """Fix SyntaxError using unified handler"""
+        if error.error_type == "general_syntax":
+            self.logger.warning("This is a general syntax error that AutoFix cannot resolve automatically.")
+            self.logger.warning(f"Please review the code in {error.file_path} at line {error.line_number} and fix the syntax manually.")
+            return False
+
         handler = create_syntax_error_handler()
         
         if handler.can_handle(error.error_message):
-            error_type, suggestion, details = handler.analyze_error(
-                error.error_message, 
-                error.file_path
-            )
-            
-            return handler.apply_syntax_fix(error.file_path, error_type, details)
+            error_type_enum = SyntaxErrorType(error.error_type)
+            return handler.apply_syntax_fix(error.file_path, error_type_enum, error.syntax_details)
         
         return False
     

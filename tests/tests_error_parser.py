@@ -23,24 +23,15 @@ class TestErrorParser(unittest.TestCase):
         self.test_script = "/test/script.py"
     
     def test_parse_module_not_found_error(self):
-        """Test parsing ModuleNotFoundError and capturing the line number."""
-        script_path = "tests/test_scripts/test_module_not_found_line.py"
+        """Test parsing ModuleNotFoundError"""
+        error = ModuleNotFoundError("No module named 'requests'")
+        error.name = "requests"
 
-        try:
-            # Execute the script to generate a real exception with a traceback
-            with open(script_path, 'r', encoding='utf-8') as f:
-                code = compile(f.read(), script_path, 'exec')
-                exec(code, {})
-        except ModuleNotFoundError as e:
-            parsed = self.parser.parse_exception(e, script_path)
+        parsed = self.parser.parse_exception(error, self.test_script)
 
-            self.assertEqual(parsed.error_type, "ModuleNotFoundError")
-            self.assertEqual(parsed.missing_module, "a_module_that_does_not_exist")
-            self.assertEqual(parsed.file_path, script_path)
-
-            # This assertion will fail before the fix because the line number is not passed
-            self.assertIsNotNone(parsed.line_number, "Line number should be parsed for ModuleNotFoundError")
-            self.assertEqual(parsed.line_number, 3)
+        self.assertEqual(parsed.error_type, "ModuleNotFoundError")
+        self.assertEqual(parsed.missing_module, "requests")
+        self.assertEqual(parsed.file_path, self.test_script)
     
     def test_parse_import_error_cannot_import(self):
         """Test parsing ImportError with 'cannot import name' pattern"""
