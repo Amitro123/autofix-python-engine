@@ -14,7 +14,7 @@ def test_core_imports():
     print("1. Testing core imports...")
     try:
         from autofix_cli_interactive import AutoFixer, ModuleNotFoundHandler, TypeErrorHandler
-        from error_parser import ErrorParser, ParsedError
+        from autofix.error_parser import ErrorParser, ParsedError
         from import_suggestions import IMPORT_SUGGESTIONS, KNOWN_PIP_PACKAGES
         from rollback import FixTransaction
         print("   ✅ All core imports successful")
@@ -191,7 +191,7 @@ def test_error_parser_integration():
     print("8. Testing ErrorParser integration...")
     try:
         from autofix_cli_interactive import AutoFixer
-        from error_parser import ErrorParser
+        from autofix.error_parser import ErrorParser
         
         fixer = AutoFixer()
         

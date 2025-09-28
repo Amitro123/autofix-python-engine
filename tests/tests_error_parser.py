@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from error_parser import ErrorParser, ParsedError
+from autofix.error_parser import ErrorParser, ParsedError
 
 
 class TestErrorParser(unittest.TestCase):

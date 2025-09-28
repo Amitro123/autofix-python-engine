@@ -10,7 +10,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from error_parser import ErrorParser
+from autofix.error_parser import ErrorParser
 from autofix_cli_interactive import AutoFixer, TypeErrorHandler, SyntaxErrorHandler
 
 def demo_transaction_fix():

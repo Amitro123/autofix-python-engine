@@ -22,7 +22,7 @@ try:
 except ImportError:
     # Fallback for direct execution
     from python_fixer import PythonFixer
-    from error_parser import ErrorParser, ParsedError
+    from autofix.error_parser import ErrorParser, ParsedError
     from logging_utils import setup_logging, get_logger
     from autofix_cli_interactive import main as cli_main
     from constants import (

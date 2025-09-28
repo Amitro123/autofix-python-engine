@@ -123,7 +123,7 @@ def test_mvp_functionality():
     # Test 8: Error Parser Integration
     print("8. Testing ErrorParser integration...")
     try:
-        from error_parser import ErrorParser, ParsedError
+        from autofix.error_parser import ErrorParser, ParsedError
         
         # Test ErrorParser is integrated
         assert hasattr(fixer, 'error_parser'), "ErrorParser not integrated"

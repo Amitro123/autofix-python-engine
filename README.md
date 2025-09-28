@@ -110,7 +110,7 @@ python cli.py --quiet script.py
 
 ```python
 from python_fixer import PythonFixer
-from error_parser import ErrorParser
+from autofix.error_parser import ErrorParser
 
 # Create fixer instance
 fixer = PythonFixer()

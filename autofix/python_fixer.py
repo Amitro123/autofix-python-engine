@@ -37,7 +37,7 @@ try:
 except ImportError:
     # Fallback for direct execution
     from autofix.constants import ErrorType
-    from error_parser import ErrorParser, ParsedError
+    from autofix.error_parser import ErrorParser, ParsedError
     from logging_utils import get_logger
     from import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,

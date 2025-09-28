@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from python_fixer import PythonFixer
-from error_parser import ParsedError
+from autofix.error_parser import ParsedError
 
 
 class TestPythonFixer(unittest.TestCase):

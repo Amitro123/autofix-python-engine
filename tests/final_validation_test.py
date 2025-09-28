@@ -10,7 +10,7 @@ def test_core_imports():
     
     try:
         from autofix_cli_interactive import AutoFixer
-        from error_parser import ErrorParser
+        from autofix.error_parser import ErrorParser
         from rollback import FixTransaction
         from import_suggestions import IMPORT_SUGGESTIONS
         from cli import AutoFixCLI
