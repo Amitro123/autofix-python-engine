@@ -1,209 +1,320 @@
 #!/usr/bin/env python3
 """
-Integration Test Runner for AutoFix CLI
-Runs the CLI against all test_*.py files and validates outcomes
+Smart AutoFix Integration Test Runner
+Runs AutoFix against various test cases and validates outcomes
 """
 
 import os
 import subprocess
 import sys
 import json
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
 from dataclasses import dataclass
 
+
+@dataclass
+class TestCase:
+    """A test case with expected behavior"""
+    name: str
+    code: str
+    expected_outcome: str  # "SUCCESS", "FAILED", "PARTIAL"
+    description: str
+
+
 @dataclass
 class TestResult:
-    """Result of running AutoFix on a test file"""
-    filename: str
+    """Result of running AutoFix on a test case"""
+    name: str
     success: bool
-    exit_code: int
     output: str
     error: str
     expected_outcome: str
     actual_outcome: str
+    description: str
 
-class IntegrationTestRunner:
-    """Runs AutoFix CLI against test files and validates results"""
+
+class SmartTestRunner:
+    """Runs AutoFix against predefined test cases"""
     
-    def __init__(self, test_dir: str = "tests"):
-        self.test_dir = Path(test_dir)
+    def __init__(self):
         self.results: List[TestResult] = []
+        self.test_cases = self._create_test_cases()
+    
+    def _create_test_cases(self) -> List[TestCase]:
+        """Create comprehensive test cases covering common scenarios"""
+        return [
+            # ✅ Should succeed - Simple import fixes
+            TestCase(
+                name="simple_import_typo",
+                code="imprt os\nprint('hello')",
+                expected_outcome="SUCCESS",
+                description="Simple import typo that should be auto-fixed"
+            ),
+            TestCase(
+                name="missing_common_module",
+                code="import requests\nresponse = requests.get('https://api.github.com')",
+                expected_outcome="SUCCESS", 
+                description="Missing common module that should suggest pip install"
+            ),
+            TestCase(
+                name="numpy_alias_fix",
+                code="import numpy as npy\narray = npy.array([1,2,3])",
+                expected_outcome="SUCCESS",
+                description="NumPy import that should be fixed to standard alias"
+            ),
+            TestCase(
+                name="pandas_basic_import",
+                code="import pandas\ndf = pandas.DataFrame({'a': [1,2,3]})",
+                expected_outcome="SUCCESS",
+                description="Pandas import that should suggest standard alias"
+            ),
+            
+            # ✅ Should succeed - Simple syntax fixes  
+            TestCase(
+                name="missing_colon",
+                code="if True\n    print('hello')",
+                expected_outcome="SUCCESS",
+                description="Missing colon in if statement"
+            ),
+            TestCase(
+                name="simple_indentation",
+                code="def test():\nprint('hello')",
+                expected_outcome="SUCCESS", 
+                description="Simple indentation error"
+            ),
+            TestCase(
+                name="missing_parenthesis",
+                code="print 'hello world'",
+                expected_outcome="SUCCESS",
+                description="Python 2 style print statement"
+            ),
+            
+            # ✅ Should succeed - Type and name errors
+            TestCase(
+                name="simple_name_error",
+                code="x = 5\nprint(y)",
+                expected_outcome="PARTIAL",
+                description="Simple NameError - should suggest correction"
+            ),
+            TestCase(
+                name="string_concatenation",
+                code="result = 'hello' + 5",
+                expected_outcome="PARTIAL", 
+                description="Type error in string concatenation"
+            ),
+            
+            # ❌ Should fail gracefully - Complex issues
+            TestCase(
+                name="complex_syntax_error",
+                code="def broken_function(\n    invalid syntax here\n    return None",
+                expected_outcome="FAILED",
+                description="Complex syntax error that cannot be auto-fixed"
+            ),
+            TestCase(
+                name="circular_import",
+                code="from module_a import function_that_imports_this_file",
+                expected_outcome="FAILED", 
+                description="Circular import that cannot be resolved"
+            ),
+            TestCase(
+                name="unknown_library",
+                code="import very_obscure_nonexistent_library_12345",
+                expected_outcome="FAILED",
+                description="Import of non-existent obscure library"
+            ),
+            
+            # 🟡 Partial success - Should provide helpful suggestions
+            TestCase(
+                name="deprecated_method",
+                code="import matplotlib.pyplot as plt\nplt.hold(True)",
+                expected_outcome="PARTIAL",
+                description="Deprecated matplotlib method usage"
+            ),
+            TestCase(
+                name="general_syntax_error",
+                code="x = 10 +",
+                expected_outcome="FAILED",
+                description="General syntax error that should show user-friendly message"
+            ),
+        ]
+    
+    def run_test_case(self, test_case: TestCase) -> TestResult:
+        """Run AutoFix on a single test case"""
+        print(f"Testing: {test_case.name}")
         
-        # Expected outcomes for specific test files
-        self.expected_outcomes = {
-            "test_clean_demo.py": "SUCCESS",
-            "test_name_error.py": "SUCCESS", 
-            "test_missing_module.py": "SUCCESS",
-            "test_simple_missing.py": "SUCCESS",
-            "test_missing_init.py": "SUCCESS",
-            "test_missing_nested.py": "SUCCESS",
-            "test_symbol_import.py": "SUCCESS",
-            "test_custom_function.py": "SUCCESS",
-            "test_syntax_fix.py": "SUCCESS",
-            "test_missing_package.py": "SUCCESS",
-            "test_pip_integration.py": "SUCCESS",
-            "test_pip_demo.py": "SUCCESS",
-            "test_pip_conflicts.py": "FAILED",  # Expected to fail - complex dependency conflicts
-            "test_syntax_error.py": "FAILED",  # Expected to fail - intentional syntax errors
-            "test_resolution_impossible.py": "FAILED",  # Expected to fail
-            "test_conflict_demo.py": "FAILED",  # Expected to fail - conflicts
-        }
-    
-    def find_test_files(self) -> List[Path]:
-        """Find all test_*.py files in the directory"""
-        test_files = list(self.test_dir.glob("test_*.py"))
-        # Filter out files that are too large or problematic
-        excluded = {"test_autofix_demo.py", "test_extension_demo.py", "test_vscode_extension.py"}
-        return [f for f in test_files if f.name not in excluded]
-    
-    def run_autofix_on_file(self, test_file: Path) -> TestResult:
-        """Run AutoFix CLI on a single test file"""
-        print(f"Testing: {test_file.name}")
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(test_case.code)
+            temp_file = f.name
         
         try:
-            # Run AutoFix CLI with timeout
-            cmd = [sys.executable, "../cli.py", str(test_file), "--quiet"]
+            # Run AutoFix
+            cmd = [sys.executable, '-m', 'autofix', temp_file, '--auto-fix']
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30,  # 30 second timeout
-                cwd=str(self.test_dir)
+                timeout=30,
+                cwd=os.getcwd()
             )
             
-            # Determine success based on exit code
+            # Analyze output
             success = result.returncode == 0
-            actual_outcome = "SUCCESS" if success else "FAILED"
-            expected_outcome = self.expected_outcomes.get(test_file.name, "SUCCESS")
+            output = result.stdout.strip()
+            error = result.stderr.strip()
+            
+            # Determine actual outcome
+            if success:
+                actual_outcome = "SUCCESS"
+            elif "cannot resolve automatically" in output.lower() or "review manually" in output.lower():
+                actual_outcome = "FAILED"  # Graceful failure
+            elif output and not error:
+                actual_outcome = "PARTIAL"  # Provided suggestions
+            else:
+                actual_outcome = "FAILED"
             
             return TestResult(
-                filename=test_file.name,
+                name=test_case.name,
                 success=success,
-                exit_code=result.returncode,
-                output=result.stdout,
-                error=result.stderr,
-                expected_outcome=expected_outcome,
-                actual_outcome=actual_outcome
+                output=output,
+                error=error,
+                expected_outcome=test_case.expected_outcome,
+                actual_outcome=actual_outcome,
+                description=test_case.description
             )
             
         except subprocess.TimeoutExpired:
             return TestResult(
-                filename=test_file.name,
+                name=test_case.name,
                 success=False,
-                exit_code=-1,
                 output="",
                 error="TIMEOUT",
-                expected_outcome=self.expected_outcomes.get(test_file.name, "SUCCESS"),
-                actual_outcome="TIMEOUT"
+                expected_outcome=test_case.expected_outcome,
+                actual_outcome="TIMEOUT",
+                description=test_case.description
             )
         except Exception as e:
             return TestResult(
-                filename=test_file.name,
+                name=test_case.name,
                 success=False,
-                exit_code=-2,
                 output="",
                 error=str(e),
-                expected_outcome=self.expected_outcomes.get(test_file.name, "SUCCESS"),
-                actual_outcome="ERROR"
+                expected_outcome=test_case.expected_outcome,
+                actual_outcome="ERROR",
+                description=test_case.description
             )
+        finally:
+            # Cleanup
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
     
     def run_all_tests(self) -> None:
-        """Run AutoFix on all test files"""
-        test_files = self.find_test_files()
-        print(f"Found {len(test_files)} test files to process")
+        """Run all test cases"""
+        print("🧪 SMART AUTOFIX INTEGRATION TEST")
         print("=" * 60)
+        print(f"Running {len(self.test_cases)} comprehensive test cases...")
+        print()
         
-        for test_file in sorted(test_files):
-            result = self.run_autofix_on_file(test_file)
+        for test_case in self.test_cases:
+            result = self.run_test_case(test_case)
             self.results.append(result)
             
-            # Print immediate feedback
-            status = "[PASS]" if result.actual_outcome == result.expected_outcome else "[FAIL]"
-            print(f"{status} {result.filename}: {result.actual_outcome} (expected: {result.expected_outcome})")
+            # Immediate feedback
+            is_correct = result.actual_outcome == result.expected_outcome
+            status = "✅ PASS" if is_correct else "❌ FAIL"
+            print(f"{status} {result.name}: {result.actual_outcome} (expected: {result.expected_outcome})")
+            
+            if not is_correct:
+                print(f"   📝 {result.description}")
+                if result.output:
+                    print(f"   💬 Output: {result.output[:100]}...")
     
-    def generate_report(self) -> Dict:
-        """Generate a comprehensive test report"""
-        total_tests = len(self.results)
-        correct_predictions = sum(1 for r in self.results if r.actual_outcome == r.expected_outcome)
+    def print_summary(self) -> None:
+        """Print comprehensive summary"""
+        total = len(self.results)
+        correct = sum(1 for r in self.results if r.actual_outcome == r.expected_outcome)
+        successes = sum(1 for r in self.results if r.success)
         
         # Categorize results
-        successes = [r for r in self.results if r.success]
-        failures = [r for r in self.results if not r.success]
-        unexpected_failures = [r for r in self.results if r.expected_outcome == "SUCCESS" and not r.success]
+        unexpected_failures = [r for r in self.results if r.expected_outcome == "SUCCESS" and r.actual_outcome != "SUCCESS"]
         unexpected_successes = [r for r in self.results if r.expected_outcome == "FAILED" and r.success]
         
+        print("\n" + "=" * 60)
+        print("📊 COMPREHENSIVE TEST SUMMARY")
+        print("=" * 60)
+        print(f"📈 Total Test Cases: {total}")
+        print(f"✅ Correct Predictions: {correct}/{total} ({correct/total:.1%})")
+        print(f"🎯 Successful Auto-fixes: {successes}")
+        print(f"⚠️  Issues Found: {len(unexpected_failures)}")
+        
+        if unexpected_failures:
+            print(f"\n❌ UNEXPECTED FAILURES ({len(unexpected_failures)}):")
+            for result in unexpected_failures:
+                print(f"   • {result.name}: {result.description}")
+                if result.error:
+                    print(f"     Error: {result.error[:100]}...")
+        
+        if unexpected_successes:
+            print(f"\n🎉 UNEXPECTED SUCCESSES ({len(unexpected_successes)}):")
+            for result in unexpected_successes:
+                print(f"   • {result.name}: {result.description}")
+        
+        # Overall assessment
+        if correct/total >= 0.8:
+            print(f"\n🎉 EXCELLENT! AutoFix is working very well!")
+        elif correct/total >= 0.6:
+            print(f"\n👍 GOOD! AutoFix is working well with some areas for improvement.")
+        else:
+            print(f"\n⚠️  NEEDS ATTENTION! Several test cases are not behaving as expected.")
+        
+        print("=" * 60)
+    
+    def save_detailed_report(self, filename: str = "smart_test_report.json") -> None:
+        """Save detailed JSON report"""
         report = {
             "summary": {
-                "total_tests": total_tests,
-                "successful_fixes": len(successes),
-                "failed_fixes": len(failures),
-                "correct_predictions": correct_predictions,
-                "accuracy": correct_predictions / total_tests if total_tests > 0 else 0,
+                "total_tests": len(self.results),
+                "correct_predictions": sum(1 for r in self.results if r.actual_outcome == r.expected_outcome),
+                "successful_fixes": sum(1 for r in self.results if r.success),
+                "accuracy": sum(1 for r in self.results if r.actual_outcome == r.expected_outcome) / len(self.results)
             },
-            "unexpected_results": {
-                "unexpected_failures": [r.filename for r in unexpected_failures],
-                "unexpected_successes": [r.filename for r in unexpected_successes],
-            },
-            "detailed_results": [
+            "results": [
                 {
-                    "filename": r.filename,
-                    "success": r.success,
-                    "exit_code": r.exit_code,
+                    "name": r.name,
+                    "description": r.description,
                     "expected": r.expected_outcome,
                     "actual": r.actual_outcome,
-                    "error": r.error if r.error else None
+                    "success": r.success,
+                    "output": r.output,
+                    "error": r.error,
+                    "correct_prediction": r.actual_outcome == r.expected_outcome
                 }
                 for r in self.results
             ]
         }
         
-        return report
-    
-    def print_summary(self) -> None:
-        """Print a summary of test results"""
-        report = self.generate_report()
-        summary = report["summary"]
-        
-        print("\n" + "=" * 60)
-        print("AUTOFIX INTEGRATION TEST SUMMARY")
-        print("=" * 60)
-        print(f"Total Tests: {summary['total_tests']}")
-        print(f"Successful Fixes: {summary['successful_fixes']}")
-        print(f"Failed Fixes: {summary['failed_fixes']}")
-        print(f"Prediction Accuracy: {summary['accuracy']:.1%}")
-        
-        # Show unexpected results
-        unexpected = report["unexpected_results"]
-        if unexpected["unexpected_failures"]:
-            print(f"\n[FAIL] Unexpected Failures ({len(unexpected['unexpected_failures'])}):")
-            for filename in unexpected["unexpected_failures"]:
-                print(f"  - {filename}")
-        
-        if unexpected["unexpected_successes"]:
-            print(f"\n[PASS] Unexpected Successes ({len(unexpected['unexpected_successes'])}):")
-            for filename in unexpected["unexpected_successes"]:
-                print(f"  - {filename}")
-        
-        print("\n" + "=" * 60)
-    
-    def save_report(self, filename: str = "integration_test_report.json") -> None:
-        """Save detailed report to JSON file"""
-        report = self.generate_report()
         with open(filename, 'w') as f:
             json.dump(report, f, indent=2)
-        print(f"Detailed report saved to: {filename}")
+        print(f"📄 Detailed report saved to: {filename}")
+
 
 def main():
     """Main entry point"""
-    print("AutoFix Integration Test Runner")
-    print("Testing CLI against all test_*.py files...")
-    print()
+    # Ensure we're in the right directory
+    if not os.path.exists('autofix'):
+        print("❌ Error: autofix directory not found. Please run from project root.")
+        print("Current directory:", os.getcwd())
+        sys.exit(1)
     
-    runner = IntegrationTestRunner()
+    runner = SmartTestRunner()
     runner.run_all_tests()
     runner.print_summary()
-    runner.save_report()
+    runner.save_detailed_report()
+
 
 if __name__ == "__main__":
     main()

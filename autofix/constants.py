@@ -15,6 +15,7 @@ class ErrorType(Enum):
     INDENTATION_ERROR = auto()
     TAB_ERROR = auto()
     UNKNOWN_ERROR = auto()
+    GENERAL_SYNTAX = auto()
     
     @classmethod
     def from_string(cls, error_string: str):
@@ -30,6 +31,9 @@ class ErrorType(Enum):
             "IndentationError": cls.INDENTATION_ERROR,
             "TabError": cls.TAB_ERROR,
             "UnknownError": cls.UNKNOWN_ERROR,
+            "general_syntax": cls.GENERAL_SYNTAX,
+            "GeneralSyntax": cls.GENERAL_SYNTAX,
+            "missing_colon": cls.GENERAL_SYNTAX,
         }
         return error_map.get(error_string)
     
@@ -46,6 +50,8 @@ class ErrorType(Enum):
             self.INDENTATION_ERROR: "IndentationError",
             self.TAB_ERROR: "TabError",
             self.UNKNOWN_ERROR: "UnknownError",
+            self.GENERAL_SYNTAX: "general_syntax",
+            
         }
         return string_map.get(self, "UnknownError")
 

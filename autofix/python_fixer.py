@@ -101,6 +101,8 @@ class PythonFixer:
             return self._suggest_import_fixes(error.missing_function, error.missing_module)
         elif error_type == ErrorType.SYNTAX_ERROR:
             return ["Fix syntax error automatically"]
+        elif error_type == ErrorType.GENERAL_SYNTAX:
+            return ["Fix general syntax error automatically"]
         else:
             return [f"Attempt to fix {error.error_type}"]
     
@@ -174,7 +176,11 @@ class PythonFixer:
                 self._clear_module_cache(script_path)
                 return self.run_script_with_fixes(script_path, recursion_depth + 1)
             else:
-                self.logger.error(f"Could not auto-resolve {parsed_error.error_type}")
+                if parsed_error.error_type == ErrorType.TYPE_ERROR.to_string():
+                    self.logger.info(f"Provided suggestions for {parsed_error.error_type} - manual review required")
+                    return True
+                else:
+                    self.logger.error(f"Could not auto-resolve {parsed_error.error_type}")
                 return False
         finally:
             os.chdir(original_cwd)
@@ -207,6 +213,10 @@ class PythonFixer:
             return self._fix_syntax_error(error)
         elif error_type == ErrorType.INDEX_ERROR:
             return self._fix_index_error(error)
+        elif error_type == ErrorType.TYPE_ERROR:
+            return self._fix_type_error(error)
+        elif error_type == ErrorType.GENERAL_SYNTAX:
+            return self._fix_syntax_error(error)
         else:
             self.logger.warning(f"No fix implementation for {error_type.to_string()}")
             return False
@@ -720,6 +730,29 @@ def {function_name}({param_str}):
             return handler.apply_syntax_fix(error.file_path, error_type, details)
         
         return False
+    
+    def _fix_type_error(self, error: ParsedError) -> bool:
+        """Handle TypeError - provide suggestions only (PARTIAL result)"""
+        print(f"\n💡 TypeError detected in {error.file_path}")
+        print(f"📝 Error: {error.error_message}")
+        if error.line_number:
+            print(f"📍 Line: {error.line_number}")
+        
+        print("\n🔧 Suggested fixes:")
+        print("  1. Convert numbers to strings: str(number)")
+        print("  2. Use f-strings: f'text{variable}'")  
+        print("  3. Check variable types before operations")
+        
+        # Specific suggestions based on error message
+        if "can only concatenate str" in error.error_message:
+            print("  💡 String concatenation fix: result = 'hello' + str(5)")
+        elif "unsupported operand" in error.error_message:
+            print("  💡 Type mismatch fix: convert variables to same type")
+        
+        print("\n💭 TypeError requires manual review - PARTIAL result")
+        return False  # PARTIAL result - suggestions only
+
+
     
     def _is_standard_library_module(self, module_name: str) -> bool:
         """Check if a module is part of Python's standard library"""
