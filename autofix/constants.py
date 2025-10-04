@@ -37,7 +37,7 @@ class ErrorType(Enum):
             "general_syntax": cls.GENERAL_SYNTAX,
             "GeneralSyntax": cls.GENERAL_SYNTAX,
             "missing_colon": cls.GENERAL_SYNTAX,
-            "KeyError": cls.UNKNOWN_ERROR,
+            "KeyError": cls.KEY_ERROR,
             "ZeroDivisionError": cls.ZERO_DIVISION_ERROR
         }
         return error_map.get(error_string)

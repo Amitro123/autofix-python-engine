@@ -46,7 +46,7 @@ class ErrorParser:
         self.logger = get_logger("error_parser")
         self.error_cache = {}
     
-    def parse_error(self, error_output: str) -> ParsedError:
+    def parse_error(self, error_output: str) -> ParsedError: #amitro to do add constants
         """Parse error output string into structured error information"""
         # Extract error type and message from stderr
         lines = error_output.strip().split('\n')
@@ -60,7 +60,7 @@ class ErrorParser:
                 error_line = line
                 break
         
-        if not error_line:#amitro to do
+        if not error_line:
             return ParsedError(
                 error_type="UnknownError",
                 error_message=error_output
@@ -93,11 +93,36 @@ class ErrorParser:
         
         # Handle specific error types
         missing_module = None
+        
         if error_type == "ModuleNotFoundError":
             module_match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_message)
             if module_match:
                 missing_module = module_match.group(1)
         
+        if error_type == "KeyError":
+            # Extract the missing key from error message
+            key_match = re.search(r"['\"]([^'\"]+)['\"]", error_message)
+            missing_key = key_match.group(1) if key_match else "unknown"
+            
+            return ParsedError(
+                error_type="KeyError",
+                error_message=error_message,
+                file_path=file_path,
+                line_number=line_number,
+                missing_function=missing_key,
+                suggested_fix=f"Check if '{missing_key}' exists in dict before accessing"
+            )
+        
+        if error_type == "ZeroDivisionError":
+            return ParsedError(
+                error_type="ZeroDivisionError",
+                error_message=error_message,
+                file_path=file_path,
+                line_number=line_number,
+                suggested_fix="Add validation to ensure divisor is not zero"
+            )
+        
+        # Default return for all other error types
         return ParsedError(
             error_type=error_type,
             error_message=error_message,
@@ -105,7 +130,7 @@ class ErrorParser:
             line_number=line_number,
             missing_module=missing_module
         )
-
+    
     def parse_exception(self, exception: Exception, script_path: str) -> ParsedError:
         """Parse an exception object into structured error information with caching"""
         # Create cache key including script path for context-aware caching
@@ -122,11 +147,17 @@ class ErrorParser:
         """Internal implementation of exception parsing"""
         error_type = type(exception).__name__
         error_message = str(exception)
-
-        line_number = self._extract_line_number(exception)
-        context = self._extract_context(script_path, line_number)
         
-        if isinstance(exception, ModuleNotFoundError):
+        try:
+            line_number = self._extract_line_number(exception)
+        except:
+            line_number = None
+        
+        if isinstance(exception, KeyError):
+            return self._parse_key_error(exception, script_path)
+        elif isinstance(exception, ZeroDivisionError):
+            return self._parse_zero_division_error(exception, script_path)
+        elif isinstance(exception, ModuleNotFoundError):
             return self._parse_module_not_found(exception, script_path)
         elif isinstance(exception, ImportError):
             return self._parse_import_error(exception, script_path)
@@ -143,8 +174,7 @@ class ErrorParser:
                 error_type=error_type,
                 error_message=error_message,
                 file_path=script_path,
-                line_number=line_number,
-                context_lines=context
+                line_number=line_number
             )
     
     def clear_cache(self):
@@ -373,7 +403,40 @@ class ErrorParser:
             confidence=0.7,
             context_lines=context
         )
+    def _parse_key_error(self, exception: KeyError, script_path: str) -> ParsedError:
+        """Parse KeyError"""
+        error_message = str(exception)
+        line_number = self._extract_line_number(exception)
+        context = self._extract_context(script_path, line_number)
+        
+        # Extract the missing key
+        missing_key = error_message.strip("'\"")
+        
+        return ParsedError(
+            error_type="KeyError",
+            error_message=error_message,
+            file_path=script_path,
+            line_number=line_number,
+            missing_function=missing_key,
+            suggested_fix=f"Check if '{missing_key}' exists before accessing",
+                context_lines=context
+        )
     
+    def _parse_zero_division_error(self, exception: ZeroDivisionError, script_path: str) -> ParsedError:
+        """Parse ZeroDivisionError"""
+        error_message = str(exception)
+        line_number = self._extract_line_number(exception)
+        context = self._extract_context(script_path, line_number)
+        
+        return ParsedError(
+            error_type="ZeroDivisionError",
+            error_message=error_message,
+            file_path=script_path,
+            line_number=line_number,
+            suggested_fix="Add validation to ensure divisor is not zero",
+            context_lines=context
+        )
+  
     def apply_fix_with_transaction(self, script_path: str, fix_function, *args, **kwargs) -> bool:
         """
         Apply a fix function with transaction support and automatic rollback.

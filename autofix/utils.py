@@ -1,27 +1,22 @@
-# utils.py
-import re
-from typing import Optional
-from .constants import ValidationPatterns
-from .import_suggestions import MODULE_TO_PACKAGE
+#!/usr/bin/env python3
+"""
+DEPRECATED: This module has been moved to handlers/module_not_found_handler.py
 
-class ModuleValidation:
-    @classmethod
-    def is_likely_test_module(cls, module_name: str) -> bool:
-        if not module_name:
-            return False
-            
-        module_lower = module_name.lower()
-        
-        # Check exact regex patterns first (more precise)
-        for pattern in ValidationPatterns.TEST_MODULE_PATTERNS:
-            if re.match(pattern, module_lower):
-                return True
-        
-        # Fallback to substring check
-        return any(indicator in module_lower 
-                  for indicator in ValidationPatterns.TEST_MODULE_INDICATORS)
-    
-    @classmethod
-    def resolve_package_name(cls, module_name: str) -> Optional[str]:
-        """Resolve module name to actual package name"""
-        return MODULE_TO_PACKAGE.get(module_name)
+ModuleValidation is now available at:
+- handlers.module_not_found_handler.ModuleValidation
+
+This file will be removed in a future version.
+"""
+
+import warnings
+
+warnings.warn(
+    "utils.ModuleValidation is deprecated. Use handlers.module_not_found_handler.ModuleValidation instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+# Forward import for backward compatibility
+from .handlers.module_not_found_handler import ModuleValidation
+
+__all__ = ['ModuleValidation']

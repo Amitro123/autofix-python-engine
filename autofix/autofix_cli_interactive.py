@@ -12,10 +12,8 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
 from .logging_utils import get_logger, quick_setup
-from .utils import ModuleValidation
 from .error_parser import ErrorParser, ParsedError
 from .python_fixer import PythonFixer
-from .module_management import PackageInstaller, ModuleCreator
 try:
     from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
     from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
@@ -23,10 +21,6 @@ except ImportError:
     from unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
     from autofix.constants import ErrorType, MetadataKey, FixStatus
 from .cli_parser import create_parser, validate_args, validate_script_path
-from .import_suggestions import (
-    IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
-    KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
-)
 
 logger = get_logger("autofix_cli_interactive")
 
@@ -100,9 +94,17 @@ class ErrorHandler(ABC):
         """Human-readable error name"""
         pass
 
-class ModuleNotFoundHandler(ErrorHandler):
+class ModuleNotFoundErrorHandler(ErrorHandler):
+    """CLI ErrorHandler for ModuleNotFoundError - uses the unified handler"""
+    
     def __init__(self):
-        self.package_installer = PackageInstaller(auto_install=True)
+        # Use the unified handler instead of direct PackageInstaller
+        from .handlers.module_not_found_handler import (
+            ModuleNotFoundHandler as UnifiedHandler,
+            ModuleValidation
+        )
+        self.unified_handler = UnifiedHandler(auto_install=True, create_files=True)
+        self.validation = ModuleValidation()
     
     def can_handle(self, error_output: str) -> bool:
         return MODULE_NOT_FOUND.to_string() in error_output
@@ -124,36 +126,39 @@ class ModuleNotFoundHandler(ErrorHandler):
         )
     
     def _get_advanced_suggestion(self, module_name: str) -> str:
-        if module_name in KNOWN_PIP_PACKAGES:
-            return f"Install pip package: pip install {module_name}"
+        """Generate advanced suggestions using unified handler"""
+        if not module_name:
+            return "Check module name and installation"
         
-        package_name = ModuleValidation.resolve_package_name(module_name)
-        if package_name and package_name != module_name:
-            return f"Install pip package: pip install {package_name} (for module {module_name})"
+        # Use the unified handler's analyze_error
+        can_fix, suggestion, _ = self.unified_handler.analyze_error(
+            f"No module named '{module_name}'",
+            ""
+        )
         
-        if ModuleValidation.is_likely_test_module(module_name):
-            return f"Module '{module_name}' appears to be a test/placeholder. Consider using a real package name or creating a local module."
-        
-        return f"Install missing module: pip install {module_name}"
-
+        return suggestion
+    
     def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
+        """Fix error using unified handler"""
         module_name = details.extra_data.get(MetadataKey.MODULE_NAME)
         
         if not module_name:
             return False
         
-        if ModuleValidation.is_likely_test_module(module_name):
-            logger.warning(f"Skipping installation of test module: {module_name}")
-            return self.package_installer.create_local_module(module_name, script_path)
+        # Use the unified handler's apply_fix
+        error_message = f"No module named '{module_name}'"
+        _, _, error_details = self.unified_handler.analyze_error(error_message, script_path)
         
-        package_name = ModuleValidation.resolve_package_name(module_name) or module_name
-        return self.package_installer.install_or_create_fallback(
-            package_name, module_name, script_path
+        return self.unified_handler.apply_fix(
+            "ModuleNotFoundError",
+            script_path,
+            error_details
         )
     
     @property
     def error_name(self) -> str:
         return MODULE_NOT_FOUND.to_string()
+
 
 class TypeErrorHandler(ErrorHandler):
     def can_handle(self, error_output: str) -> bool:
@@ -484,7 +489,7 @@ class AutoFixer:
     
     def __init__(self):
         self.handlers = {
-            MODULE_NOT_FOUND: ModuleNotFoundHandler(),
+            MODULE_NOT_FOUND: ModuleNotFoundErrorHandler(),
             TYPE_ERROR: TypeErrorHandler(),
             INDENTATION_ERROR: IndentationErrorHandler(),
             INDEX_ERROR: IndexErrorHandler(),
@@ -492,9 +497,6 @@ class AutoFixer:
             TAB_ERROR: TabErrorHandler()
         }
         self.error_parser = ErrorParser()
-        self.import_suggestions = IMPORT_SUGGESTIONS
-        self.stdlib_modules = STDLIB_MODULES
-        self.known_pip_packages = KNOWN_PIP_PACKAGES
     
     def run_script(self, script_path: str) -> Tuple[bool, Optional[subprocess.CalledProcessError]]:
         """Run script with loading spinner"""
