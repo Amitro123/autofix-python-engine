@@ -70,6 +70,43 @@ class SmartTestRunner:
                 expected_outcome="SUCCESS",
                 description="Pandas import that should suggest standard alias"
             ),
+            # Logic Errors (PARTIAL)
+            TestCase(
+                name="index_out_of_range",
+                code="lst = [1,2,3]\nprint(lst[10])",
+                expected_outcome="PARTIAL",
+                description="IndexError - list index out of range"
+            ),
+
+            TestCase(
+                name="key_error",
+                code="d = {'a': 1}\nprint(d['b'])",
+                expected_outcome="PARTIAL", 
+                description="KeyError - missing dictionary key"
+            ),
+
+            TestCase(
+                name="zero_division",
+                code="x = 10 / 0",
+                expected_outcome="PARTIAL",
+                description="ZeroDivisionError"
+            ),
+
+            # Import variations (SUCCESS)
+            TestCase(
+                name="relative_import",
+                code="from . import utils",
+                expected_outcome="FAILED",  # Can't auto-fix without context
+                description="Relative import without package"
+            ),
+
+            TestCase(
+                name="multiple_imports",
+                code="import os, sys, json\nimport requests",
+                expected_outcome="PARTIAL",  # requests needs install
+                description="Multiple imports with missing package"
+            ),
+
             
             # ✅ Should succeed - Simple syntax fixes  
             TestCase(
@@ -166,14 +203,17 @@ class SmartTestRunner:
             error = result.stderr.strip()
             
             # Determine actual outcome
-            if success:
+            if "manual review" in output.lower() or "partial" in output.lower():
+                actual_outcome = "PARTIAL"
+            elif "cannot resolve automatically" in output.lower():
+                actual_outcome = "FAILED"
+            elif success and not error:
                 actual_outcome = "SUCCESS"
-            elif "cannot resolve automatically" in output.lower() or "review manually" in output.lower():
-                actual_outcome = "FAILED"  # Graceful failure
             elif output and not error:
-                actual_outcome = "PARTIAL"  # Provided suggestions
+                actual_outcome = "PARTIAL"
             else:
                 actual_outcome = "FAILED"
+
             
             return TestResult(
                 name=test_case.name,

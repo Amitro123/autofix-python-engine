@@ -361,7 +361,7 @@ class TabErrorHandler(ErrorHandler):
             return False
 
 
-class IndexErrorHandler(ErrorHandler):
+class IndexErrorHandler(ErrorHandler):#amitro to do
     def can_handle(self, error_output: str) -> bool:
         return INDEX_ERROR.to_string() in error_output
     

@@ -103,16 +103,16 @@ class TypeErrorHandler(BaseHandler):
     def apply_fix(self, error_type: str, file_path: str, details: Dict) -> bool:
         """TypeErrorHandler only provides suggestions (PARTIAL result)"""
         
-        print(f"\n💡 TypeError detected in {file_path}")
-        print(f"📋 Error type: {error_type}")
-        print(f"📝 Line: {details.get('line_number', 'Unknown')}")
-        print("\n🔧 Suggested fixes:")
+        print(f"\nTypeError detected in {file_path}")
+        print(f"Error type: {error_type}")
+        print(f"Line: {details.get('line_number', 'Unknown')}")
+        print("\nSuggested fixes:")
         
         suggestions = details.get("suggestions", [])
         for i, suggestion in enumerate(suggestions, 1):
             print(f"  {i}. {suggestion}")
             
-        print(f"\n💭 Suggestion: {details.get('suggestion', 'Review code')}")
+        print(f"\nSuggestion: {details.get('suggestion', 'Review code')}")
         
         # Return False - we don't auto-fix TypeErrors, only suggest
         return False

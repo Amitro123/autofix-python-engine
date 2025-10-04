@@ -24,6 +24,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Callable
 from .unified_syntax_handler import create_syntax_error_handler
 from .utils import ModuleValidation
+from autofix.handlers.key_error_handler import KeyErrorHandler
+from autofix.handlers.zero_division_handler import ZeroDivisionHandler
+from autofix.handlers.index_error_handler import IndexErrorHandler
+
+
 
 # Handle both relative and absolute imports
 try:
@@ -209,10 +214,14 @@ class PythonFixer:
             return self._fix_name_error(error)
         elif error_type == ErrorType.ATTRIBUTE_ERROR:
             return self._fix_attribute_error(error)
+        elif error_type == ErrorType.INDEX_ERROR:         
+            return self._fix_index_error(error)            
+        elif error_type == ErrorType.KEY_ERROR:           
+            return self._fix_key_error(error)              
+        elif error_type == ErrorType.ZERO_DIVISION_ERROR:  
+            return self._fix_zero_division_error(error)    
         elif error_type == ErrorType.SYNTAX_ERROR:
             return self._fix_syntax_error(error)
-        elif error_type == ErrorType.INDEX_ERROR:
-            return self._fix_index_error(error)
         elif error_type == ErrorType.TYPE_ERROR:
             return self._fix_type_error(error)
         elif error_type == ErrorType.GENERAL_SYNTAX:
@@ -263,86 +272,76 @@ class PythonFixer:
         # Try to create a local module file
         return self._create_module_file(missing_module, error.file_path)
     
-    def _fix_import_error(self, error: ParsedError) -> bool:
-        """Fix ImportError by adding missing imports or creating missing __init__.py files"""
-        if error.missing_function and error.missing_module:
-            # Check if we're trying to import from a standard library module
-            if self._is_standard_library_module(error.missing_module):
-                self.logger.warning(f"Cannot import '{error.missing_function}' from standard library module '{error.missing_module}' - symbol does not exist")
-                return self._fix_standard_library_import_error(error)
-            
-            # Check if this is a missing __init__.py issue first
-            if self._fix_missing_init_files(error.missing_module):
-                return True
-            
-            # Handle "cannot import name 'X' from 'Y'" errors
-            import_statement = f"from {error.missing_module} import {error.missing_function}"
-            return self._add_import_to_script(import_statement, error.file_path)
-        elif error.missing_module:
-            # Handle general module import errors
-            if self._is_known_pip_package(error.missing_module):
-                return self.maybe_install_package(error.missing_module)
-        
-        return False
-    
     def _fix_name_error(self, error: ParsedError) -> bool:
-        """Fix NameError by creating missing functions or adding imports"""
-        missing_function = error.missing_function
-        if not missing_function:
-            return False
+        """Handle NameError - provide suggestions only (PARTIAL result)"""
+        missing_name = error.missing_function or "unknown"
         
-        self.logger.info(f"Attempting to fix undefined name: {missing_function}")
+        print(f"\nNameError detected in {error.file_path}")
+        print(f"Undefined name: '{missing_name}'")
+        if error.line_number:
+            print(f"Line: {error.line_number}")
         
-        # Check if it's a common function that needs import
-        if missing_function in self.common_imports:
-            import_statement = self.common_imports[missing_function]
-            return self._add_import_to_script(import_statement, error.file_path)
+        print("\nSuggestions:")
         
+        # Check if it's a common import
+        if missing_name in self.common_imports:
+            print(f"  1. Add import: {self.common_imports[missing_name]}")
+            print(f"  2. Check variable spelling")
         # Check if it's a math function
-        if missing_function in self.math_functions:
-            import_statement = f"from math import {missing_function}"
-            return self._add_import_to_script(import_statement, error.file_path)
+        elif missing_name in self.math_functions:
+            print(f"  1. Add import: from math import {missing_name}")
+            print(f"  2. Define the function before use")
+        else:
+            print("  1. Check variable/function spelling")
+            print("  2. Define variable before use")
+            print("  3. Import missing module if needed")
         
-        # Try to create the function in the script
-        return self._create_function_in_script(missing_function, error.file_path)
-    
-    def _fix_attribute_error(self, error: ParsedError) -> bool:
-        """Fix AttributeError by suggesting imports or method creation"""
-        if error.missing_attribute and error.missing_module:
-            self.logger.info(f"Missing attribute '{error.missing_attribute}' on '{error.missing_module}'")
-            # Check if it's a common library function that needs import
-            suggestion = self._suggest_library_import(
-                error.missing_attribute, error.missing_module)
-            if suggestion:
-                return self._add_import_to_script(suggestion, error.file_path)
+        print("\nNameError requires manual review - PARTIAL result")
+        return False  # PARTIAL - suggestions only, no auto-fix
+     
+    def _fix_index_error(self, error: ParsedError) -> bool:
+        """
+        Handle IndexError - provide suggestions only (PARTIAL result)
         
-        return False
+        IndexError is a runtime/logic error that cannot be auto-fixed.
+        Provides targeted suggestions based on error subtype.
+        
+        Returns:
+            bool: False (PARTIAL) - suggestions provided, manual review required
+        """
+        
+        self.logger.info(f"IndexError detected: {error.error_message}")
+        
+        # Use handler for analysis and suggestions
+        handler = IndexErrorHandler()
+        _, _, details = handler.analyze_error(error.error_message, error.file_path)
+        details['line_number'] = error.line_number
+        
+        # Handler will print suggestions
+        return handler.apply_fix("IndexError", error.file_path, details)
 
         
-    def _fix_index_error(self, error: ParsedError) -> bool:
-        """Fix IndexError by adding bounds checking or safe indexing"""
-        self.logger.info(f"Attempting to fix IndexError: {error.error_message}")
+    def _fix_key_error(self, error: ParsedError) -> bool:
+        """Handle KeyError - delegate to KeyErrorHandler"""
+        handler = KeyErrorHandler()
+        _, _, details = handler.analyze_error(error.error_message, error.file_path)
+        details['error_message'] = error.error_message
+        details['line_number'] = error.line_number
+
+        return handler.apply_fix("KeyError", error.file_path, details)
+
+    def _fix_zero_division_error(self, error: ParsedError) -> bool:
+        """Handle ZeroDivisionError - delegate to ZeroDivisionHandler"""
         
-        try:
-            lines = self._read_file_lines(error.file_path)
-            line_idx = self._validate_line_number(error.line_number, lines)
-            if line_idx is None:
-                return False
-            
-            problematic_line = lines[line_idx].strip()
-            self.logger.info(f"Problematic line: {problematic_line}")
-            
-            fixes_applied = self._apply_index_fixes(lines, line_idx, problematic_line, error.error_message)
-            
-            if fixes_applied:
-                return self._save_fixed_file(error.file_path, lines, fixes_applied)
-            else:
-                self._log_index_error_suggestions()
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Error fixing IndexError: {e}")
-            return False
+        handler = ZeroDivisionHandler()
+        _, _, details = handler.analyze_error(error.error_message, error.file_path)
+        details['error_message'] = error.error_message
+        details['line_number'] = error.line_number
+        
+        return handler.apply_fix("ZeroDivisionError", error.file_path, details)
+   
+
+    
     
     def _read_file_content(self, file_path: str) -> str:
         """Read file content with UTF-8 encoding"""
@@ -731,25 +730,58 @@ def {function_name}({param_str}):
         
         return False
     
+    def _fix_attribute_error(self, error: ParsedError) -> bool:
+        """Handle AttributeError - provide suggestions (PARTIAL result)"""
+        print(f"\nAttributeError detected in {error.file_path}")
+        
+        # Extract attribute name if possible
+        if "has no attribute" in error.error_message:
+            # Try to extract: "module 'X' has no attribute 'Y'"
+            parts = error.error_message.split("'")
+            if len(parts) >= 4:
+                module_name = parts[1]
+                attr_name = parts[3]
+                print(f"Module: {module_name}")
+                print(f"Missing attribute: {attr_name}")
+        
+        if error.line_number:
+            print(f"Line: {error.line_number}")
+        
+        print("\nSuggestions:")
+        print("  1. Check object type and available methods")
+        print("  2. Verify attribute/method name spelling")
+        print("  3. Check documentation for deprecated methods")
+        print("  4. Update to newer API if method is deprecated")
+        
+        # Specific suggestion for matplotlib.hold
+        if "hold" in error.error_message and "matplotlib" in error.error_message:
+            print("\nSpecific fix for matplotlib:")
+            print("  plt.hold() was deprecated - remove this line")
+            print("  Multiple plot calls are now held by default")
+        
+        print("\nAttributeError requires manual review - PARTIAL result")
+        return False  # PARTIAL - suggestions only
+
+    
     def _fix_type_error(self, error: ParsedError) -> bool:
         """Handle TypeError - provide suggestions only (PARTIAL result)"""
-        print(f"\n💡 TypeError detected in {error.file_path}")
-        print(f"📝 Error: {error.error_message}")
+        print(f"\nTypeError detected in {error.file_path}")
+        print(f"Error: {error.error_message}")
         if error.line_number:
-            print(f"📍 Line: {error.line_number}")
+            print(f"Line: {error.line_number}")
         
-        print("\n🔧 Suggested fixes:")
+        print("\nSuggested fixes:")
         print("  1. Convert numbers to strings: str(number)")
         print("  2. Use f-strings: f'text{variable}'")  
         print("  3. Check variable types before operations")
         
         # Specific suggestions based on error message
         if "can only concatenate str" in error.error_message:
-            print("  💡 String concatenation fix: result = 'hello' + str(5)")
+            print("String concatenation fix: result = 'hello' + str(5)")
         elif "unsupported operand" in error.error_message:
-            print("  💡 Type mismatch fix: convert variables to same type")
+            print("Type mismatch fix: convert variables to same type")
         
-        print("\n💭 TypeError requires manual review - PARTIAL result")
+        print("\nTypeError requires manual review - PARTIAL result")
         return False  # PARTIAL result - suggestions only
 
 

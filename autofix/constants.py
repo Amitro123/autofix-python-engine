@@ -16,6 +16,9 @@ class ErrorType(Enum):
     TAB_ERROR = auto()
     UNKNOWN_ERROR = auto()
     GENERAL_SYNTAX = auto()
+    KEY_ERROR = auto()
+    ZERO_DIVISION_ERROR = auto()
+    
     
     @classmethod
     def from_string(cls, error_string: str):
@@ -34,6 +37,8 @@ class ErrorType(Enum):
             "general_syntax": cls.GENERAL_SYNTAX,
             "GeneralSyntax": cls.GENERAL_SYNTAX,
             "missing_colon": cls.GENERAL_SYNTAX,
+            "KeyError": cls.UNKNOWN_ERROR,
+            "ZeroDivisionError": cls.ZERO_DIVISION_ERROR
         }
         return error_map.get(error_string)
     
@@ -51,6 +56,8 @@ class ErrorType(Enum):
             self.TAB_ERROR: "TabError",
             self.UNKNOWN_ERROR: "UnknownError",
             self.GENERAL_SYNTAX: "general_syntax",
+            self.KEY_ERROR: "KeyError",
+            self.ZERO_DIVISION_ERROR: "ZeroDivisionError"
             
         }
         return string_map.get(self, "UnknownError")

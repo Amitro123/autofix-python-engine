@@ -60,7 +60,7 @@ class ErrorParser:
                 error_line = line
                 break
         
-        if not error_line:
+        if not error_line:#amitro to do
             return ParsedError(
                 error_type="UnknownError",
                 error_message=error_output
@@ -421,7 +421,8 @@ class ErrorParser:
         Usage:
             with parser.create_safe_fix_context("script.py") as ctx:
                 # Apply fixes here
-                ctx.apply_fix(some_fix_function, arg1, arg2)
+                ctx.apply_fix_with_rollback(some_fix_function, arg1, arg2)  # ← שנה כאן
+
         """
         return SafeFixContext(script_path, self.logger)
 
@@ -455,8 +456,8 @@ class SafeFixContext:
         
         return self.transaction.__exit__(exc_type, exc_val, exc_tb)
     
-    def apply_fix(self, fix_function, *args, **kwargs):
-        """Apply a fix function within the safe context"""
+    def apply_fix_with_rollback(self, fix_function, *args, **kwargs): #amitro to do
+        """Apply a fix function within the safe context with rollback protection"""
         fix_name = getattr(fix_function, '__name__', 'unknown_fix')
         
         try:
