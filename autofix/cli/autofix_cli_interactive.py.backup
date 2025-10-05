@@ -1,4 +1,4 @@
-import subprocess
+﻿import subprocess
 import sys
 import os
 import re
@@ -11,14 +11,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
-from .logging_utils import get_logger, quick_setup
-from .error_parser import ErrorParser, ParsedError
-from .python_fixer import PythonFixer
+from ..helpers.logging_utils import get_logger, quick_setup
+from ..error_parser import ErrorParser, ParsedError
+from ..python_fixer import PythonFixer
 try:
-    from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
-    from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
+    from autofix.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
+    from ..constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
 except ImportError:
-    from unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
+    from autofix.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
     from autofix.constants import ErrorType, MetadataKey, FixStatus
 from .cli_parser import create_parser, validate_args, validate_script_path
 
@@ -44,7 +44,7 @@ metrics_collector = None
 __app_id = EnvironmentVariables.DEFAULT_APP_ID
 
 try:
-    from .firestore_client import get_metrics_collector
+    from ..firestore_client import get_metrics_collector
     metrics_collector = get_metrics_collector()
     METRICS_ENABLED = metrics_collector.client is not None
     if METRICS_ENABLED:
@@ -99,7 +99,7 @@ class ModuleNotFoundErrorHandler(ErrorHandler):
     
     def __init__(self):
         # Use the unified handler instead of direct PackageInstaller
-        from .handlers.module_not_found_handler import (
+        from ..handlers.module_not_found_handler import (
             ModuleNotFoundHandler as UnifiedHandler,
             ModuleValidation
         )
@@ -268,7 +268,8 @@ class IndentationErrorHandler(ErrorHandler):
     
     def extract_details(self, error_output: str) -> ErrorDetails:
         line_match = re.search(RegexPatterns.LINE_NUMBER, error_output)
-        line_number = int(line_match.group(1)) if line_match else None
+        line_number = int(line_match.group(1)) if line_match and line_match.group(1) else None
+
         
         if "expected an indented block" in error_output:
             error_type = SyntaxErrorSubType.MISSING_INDENTATION.value
@@ -345,6 +346,10 @@ class TabErrorHandler(ErrorHandler):
     
     def fix_error(self, script_path: str, details: ErrorDetails) -> bool:
         """Convert tabs to spaces"""
+        if not script_path:
+            logger.error("fix_error called with None or empty script_path")
+            return False
+        
         try:
             content = Path(script_path).read_text(encoding='utf-8')
             fixed_content = content.expandtabs(4)  # Convert tabs to 4 spaces
@@ -360,11 +365,10 @@ class TabErrorHandler(ErrorHandler):
                 return True
             
             return False
-                
+            
         except Exception as e:
             logger.error(f"Failed to fix TabError: {e}")
             return False
-
 
 class IndexErrorHandler(ErrorHandler):#amitro to do
     def can_handle(self, error_output: str) -> bool:
@@ -555,6 +559,7 @@ class AutoFixer:
         return obj
 
     def save_metrics(self, script_path: str, status: str, **kwargs):
+        print(f'DEBUG METRICS: Calling save_metrics for {script_path}, status={status}, ENABLED={METRICS_ENABLED}')
         if not METRICS_ENABLED or not metrics_collector:
             return False
         
@@ -706,6 +711,11 @@ class AutoFixer:
             logger.info(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
             print(f"Attempting to fix {handler.error_name}, Attempt {retry_attempts + 1} of {max_retries + 1}")
 
+            if not script_path:
+                logger.error("Cannot fix error: script_path is None or empty")
+                return False
+
+
             fix_successful = handler.fix_error(script_path, details)
             
             if fix_successful:
@@ -769,6 +779,25 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
+    # Handle no script path - MOVE THIS TO THE TOP
+    if not args.script_path:
+        parser.print_help()
+        sys.exit(1)
+
+    # Validate arguments
+    error_msg = validate_args(args)
+    if error_msg:
+        print(error_msg)
+        if error_msg.startswith("Error:"):
+            sys.exit(1)
+
+    logger = quick_setup(verbose=args.verbose > 0, quiet=args.quiet)
+    logger.info(f"Starting AutoFix for: {args.script_path}")
+    logger.debug(f"Verbosity level: {args.verbose}")
+
+    if not validate_script_path(args.script_path, logger):
+        sys.exit(1)
+
     config = {
         'interactive': True,
         'auto_install': args.auto_install,
@@ -776,39 +805,10 @@ def main():
         'create_files': True,
         'dry_run': False
     }
-    
-    fixer = PythonFixer(config=config)
 
+    fixer = PythonFixer(config=config)
     success = fixer.run_script_with_fixes(args.script_path)
 
-    sys.exit(0 if success else 1)
-
-    # Handle no script path
-    if not args.script_path:
-        parser.print_help()
-        return 0
-    
-    # Validate arguments
-    error_msg = validate_args(args)
-    if error_msg:
-        print(error_msg)
-        if error_msg.startswith("Error:"):
-            return 1
-    
-    logger = quick_setup(verbose=args.verbose > 0, quiet=args.quiet)
-    logger.info(f"Starting AutoFix for: {args.script_path}")
-    logger.debug(f"Verbosity level: {args.verbose}")
-    
-    if not validate_script_path(args.script_path, logger):
-        return 1
-    
-    logger.info(f"Starting AutoFix for: {args.script_path}")
-
-    
-    fixer = AutoFixer()
-    success = fixer.process_script(args.script_path, max_retries=args.max_retries, auto_fix=args.auto_fix)
-    
-    # Exit with appropriate code
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

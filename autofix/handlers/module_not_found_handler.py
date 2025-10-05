@@ -24,14 +24,14 @@ try:
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE
     )
-    from ..logging_utils import get_logger
+    from ..helpers.logging_utils import get_logger
     from ..constants import ValidationPatterns
 except ImportError:
     from autofix.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE
     )
-    from autofix.logging_utils import get_logger
+    from autofix.helpers.logging_utils import get_logger
     from autofix.constants import ValidationPatterns
 
 

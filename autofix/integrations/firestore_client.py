@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Firestore REST API client for secure metrics collection.
 
@@ -18,6 +18,12 @@ import requests
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import logging
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file
+except ImportError:
+    pass  # python-dotenv not installed, skip
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +162,7 @@ class MetricsCollector:
         # Default credentials for production metrics collection
         # These are safe public credentials, not secrets
         self.project_id = project_id or os.getenv('FIREBASE_PROJECT_ID', 'autofix-enginedb')
-        self.api_key = api_key or os.getenv('FIREBASE_WEB_API_KEY', 'AIzaSyExample-WebAPIKey-ForMetrics')
+        self.api_key = api_key or os.getenv('FIREBASE_WEB_API_KEY')
         self.app_id = app_id or os.getenv('APP_ID', 'autofix-default-app')
         
         # Initialize Firestore client

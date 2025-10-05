@@ -70,7 +70,7 @@ def safe_dict_get(dictionary: Dict[str, Any], key: str, default: Any = None, val
                 logger.warning(f"Expected {validate_type}, got {type(value)} for key '{key}'")
                 return default
         
-        return valuegit
+        return value
     except (AttributeError, TypeError) as e:
         logger.error(f"Error accessing dictionary key '{key}': {e}")
         return default

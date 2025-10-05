@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from ..logging_utils import get_logger
+from ..helpers.logging_utils import get_logger
 
 
 class SyntaxErrorType(Enum):

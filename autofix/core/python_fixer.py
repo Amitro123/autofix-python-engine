@@ -24,13 +24,13 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
 from autofix.handlers.syntax_error_handler import create_syntax_error_handler
-from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+from ..import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 
 from autofix.handlers.key_error_handler import KeyErrorHandler
 from autofix.handlers.zero_division_handler import ZeroDivisionHandler
 from autofix.handlers.index_error_handler import IndexErrorHandler
 from autofix.handlers.import_error_handler import ImportErrorHandler
-from .handlers.module_not_found_handler import (
+from ..handlers.module_not_found_handler import (
     ModuleNotFoundHandler,
     ModuleValidation,
     PackageInstaller
@@ -38,17 +38,17 @@ from .handlers.module_not_found_handler import (
 
 # Handle both relative and absolute imports
 try:
-    from .constants import ErrorType
+    from ..constants import ErrorType
     from .error_parser import ErrorParser, ParsedError
-    from .helpers.logging_utils import get_logger
-    from .import_suggestions import ( #amitro changed
+    from ..helpers.logging_utils import get_logger
+    from ..import_suggestions import ( #amitro changed
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
         KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
     )
 except ImportError:
     # Fallback for direct execution
     from autofix.constants import ErrorType
-    from error_parser import ErrorParser, ParsedError
+    from autofix.core.error_parser import ErrorParser, ParsedError
     from autofix.helpers.logging_utils import get_logger
     from import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,

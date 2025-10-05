@@ -14,12 +14,13 @@ from typing import Any, Dict, List, Optional, Union
 
 # Handle both relative and absolute imports
 try:
-    from .rollback import FixTransaction
-    from .logging_utils import get_logger
+    from ..helpers.rollback import FixTransaction
+    from ..helpers.logging_utils import get_logger
 except ImportError:
     # Fallback for direct execution
-    from rollback import FixTransaction
-    from logging_utils import get_logger
+    from helpers.rollback import FixTransaction
+    from autofix.helpers.logging_utils import get_logger
+
 
 @dataclass
 class ParsedError:

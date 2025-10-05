@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Metrics and statistics tracking for AutoFix operations.
 
@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 
 # Import secure Firestore client
-from firestore_client import get_metrics_collector, save_metrics
+from .firestore_client import get_metrics_collector, save_metrics
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class FixStats:
 
         if enable_firestore:
             try:
-                from .firestore_client import get_metrics_collector  # Import עדכני
+                from .firestore_client import get_metrics_collector  # Import ×¢×“×›× ×™
                 self.metrics_collector = get_metrics_collector()
             except ImportError:
                 self.metrics_collector = None
@@ -254,27 +254,27 @@ class ReportFormatter:
     def display_analysis_results(self, results: dict):
         """Display formatted analysis results"""
         print("\n" + "=" * 60)
-        print("🔍 ANALYSIS RESULTS")
+        print("ðŸ” ANALYSIS RESULTS")
         print("=" * 60)
         
         if results.get('errors_found'):
-            print(f"\n📋 Found {len(results['errors_found'])} potential issue(s):")
+            print(f"\nðŸ“‹ Found {len(results['errors_found'])} potential issue(s):")
             
             for i, error in enumerate(results['errors_found'], 1):
                 print(f"\n{i}. {error['type']}: {error['message']}")
                 if error.get('suggested_fixes'):
-                    print("   💡 Suggested fixes:")
+                    print("   ðŸ’¡ Suggested fixes:")
                     for fix in error['suggested_fixes']:
-                        print(f"      • {fix}")
+                        print(f"      â€¢ {fix}")
                 if error.get('file_path'):
-                    print(f"   📁 File: {error['file_path']}")
+                    print(f"   ðŸ“ File: {error['file_path']}")
                 if error.get('line_number'):
-                    print(f"   📍 Line: {error['line_number']}")
+                    print(f"   ðŸ“ Line: {error['line_number']}")
         else:
-            print("\n✅ No issues detected - script should run without problems!")
+            print("\nâœ… No issues detected - script should run without problems!")
         
         print("\n" + "=" * 60)
-        print("💡 Run without --dry-run to apply fixes automatically")
+        print("ðŸ’¡ Run without --dry-run to apply fixes automatically")
         print("=" * 60)
     
     def print_banner(self, quiet_mode: bool = False):

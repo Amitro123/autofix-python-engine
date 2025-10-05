@@ -1,1 +1,0 @@
-﻿result = 'hello' + 5

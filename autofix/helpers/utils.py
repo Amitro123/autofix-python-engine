@@ -17,6 +17,6 @@ warnings.warn(
 )
 
 # Forward import for backward compatibility
-from .handlers.module_not_found_handler import ModuleValidation
+from ..handlers.module_not_found_handler import ModuleValidation
 
 __all__ = ['ModuleValidation']
