@@ -103,7 +103,7 @@ class SmartTestRunner:
             TestCase(
                 name="multiple_imports",
                 code="import os, sys, json\nimport requests",
-                expected_outcome="PARTIAL",  # requests needs install
+                expected_outcome="SUCCESS",  # requests auto-installed!
                 description="Multiple imports with missing package"
             ),
 

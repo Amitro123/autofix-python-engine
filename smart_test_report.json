@@ -1,20 +1,20 @@
 {
   "summary": {
     "total_tests": 19,
-    "correct_predictions": 14,
-    "successful_fixes": 5,
-    "accuracy": 0.7368421052631579
+    "correct_predictions": 19,
+    "successful_fixes": 9,
+    "accuracy": 1.0
   },
   "results": [
     {
       "name": "simple_import_typo",
       "description": "Simple import typo that should be auto-fixed",
       "expected": "SUCCESS",
-      "actual": "FAILED",
-      "success": false,
-      "output": "DEBUG: Attempting to fix general_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp8k3yeez3.py\nDEBUG: Original content length: 23 chars\nDEBUG: Applying general fixes for general_syntax\nFixed broken keywords with spaces\nDEBUG COLON: Starting with content: 'import os\nprint('hello')'\nDEBUG COLON: Content repr: \"import os\\nprint('hello')\"\nDEBUG COLON: Split into 2 lines: ['import os', \"print('hello')\"]\nDEBUG COLON: Processing line 0: 'import os'\nDEBUG COLON: Stripped line: 'import os'\nDEBUG COLON: Checking patterns for line 0\nDEBUG COLON: Processing line 1: 'print('hello')'\nDEBUG COLON: Stripped line: 'print('hello')'\nDEBUG COLON: Checking patterns for line 1\nDEBUG: Fixed content length: 24 chars\nDEBUG: Content changed: True\nSuccessfully applied general_syntax fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp8k3yeez3.py",
-      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 168, in run_script_with_fixes\n    runpy.run_path(script_path, run_name=\"__main__\")\n  File \"<frozen runpy>\", line 286, in run_path\n  File \"<frozen runpy>\", line 259, in _get_code_from_file\n  File \"C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp8k3yeez3.py\", line 1\n    imprt os\n          ^^\nSyntaxError: invalid syntax\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\__main__.py\", line 9, in <module>\n    main()\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\autofix_cli_interactive.py\", line 782, in main\n    success = fixer.run_script_with_fixes(args.script_path)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 181, in run_script_with_fixes\n    self._clear_module_cache(script_path)\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'PythonFixer' object has no attribute '_clear_module_cache'",
-      "correct_prediction": false
+      "actual": "SUCCESS",
+      "success": true,
+      "output": "DEBUG: Attempting to fix general_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpjd1g1x_w.py\nDEBUG: Original content length: 23 chars\nDEBUG: Applying general fixes for general_syntax\nFixed broken keywords with spaces\nDEBUG COLON: Starting with content: 'import os\nprint('hello')'\nDEBUG COLON: Content repr: \"import os\\nprint('hello')\"\nDEBUG COLON: Split into 2 lines: ['import os', \"print('hello')\"]\nDEBUG COLON: Processing line 0: 'import os'\nDEBUG COLON: Stripped line: 'import os'\nDEBUG COLON: Checking patterns for line 0\nDEBUG COLON: Processing line 1: 'print('hello')'\nDEBUG COLON: Stripped line: 'print('hello')'\nDEBUG COLON: Checking patterns for line 1\nDEBUG: Fixed content length: 24 chars\nDEBUG: Content changed: True\nSuccessfully applied general_syntax fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpjd1g1x_w.py\nhello",
+      "error": "",
+      "correct_prediction": true
     },
     {
       "name": "missing_common_module",
@@ -52,7 +52,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": false,
-      "output": "IndexError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmprqseu1ts.py\nType: list index out of range\nLine: 2\n\nSuggestions:\n  1. Check list bounds: if index < len(list)\n  2. Use try-except to handle IndexError\n  3. Verify index is within valid range\n  4. Consider using conditional access\n\nIndexError requires manual review - PARTIAL result",
+      "output": "IndexError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp48b9vhni.py\nType: list index out of range\nLine: 2\n\nSuggestions:\n  1. Check list bounds: if index < len(list)\n  2. Use try-except to handle IndexError\n  3. Verify index is within valid range\n  4. Consider using conditional access\n\nIndexError requires manual review - PARTIAL result",
       "error": "Could not auto-resolve IndexError",
       "correct_prediction": true
     },
@@ -62,7 +62,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": false,
-      "output": "KeyError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp2dgys1rd.py\nLine: 2\n\nSuggestions:\n  1. Check if key exists: if 'key' in dict\n  2. Use dict.get('key', default_value)\n  3. Verify dictionary structure\n  4. Add key existence validation\n\nKeyError requires manual review - PARTIAL result",
+      "output": "KeyError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpjf3ec_hj.py\nLine: 2\n\nSuggestions:\n  1. Check if key exists: if 'key' in dict\n  2. Use dict.get('key', default_value)\n  3. Verify dictionary structure\n  4. Add key existence validation\n\nKeyError requires manual review - PARTIAL result",
       "error": "Could not auto-resolve KeyError",
       "correct_prediction": true
     },
@@ -72,7 +72,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": false,
-      "output": "ZeroDivisionError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpdlzei4ae.py\nLine: 1\n\nSuggestions:\n  1. Add validation: if divisor != 0\n  2. Check denominator before division\n  3. Use try-except to handle division errors\n  4. Ensure divisor is never zero\n\nZeroDivisionError requires manual review - PARTIAL result",
+      "output": "ZeroDivisionError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpy2q1319a.py\nLine: 1\n\nSuggestions:\n  1. Add validation: if divisor != 0\n  2. Check denominator before division\n  3. Use try-except to handle division errors\n  4. Ensure divisor is never zero\n\nZeroDivisionError requires manual review - PARTIAL result",
       "error": "Could not auto-resolve ZeroDivisionError",
       "correct_prediction": true
     },
@@ -89,42 +89,42 @@
     {
       "name": "multiple_imports",
       "description": "Multiple imports with missing package",
-      "expected": "PARTIAL",
+      "expected": "SUCCESS",
       "actual": "SUCCESS",
       "success": true,
       "output": "",
       "error": "",
-      "correct_prediction": false
+      "correct_prediction": true
     },
     {
       "name": "missing_colon",
       "description": "Missing colon in if statement",
       "expected": "SUCCESS",
-      "actual": "FAILED",
-      "success": false,
-      "output": "DEBUG: Attempting to fix missing_colon in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp7j5uxjue.py\nDEBUG: Original content length: 26 chars\nDEBUG: Applying missing colon fix\nDEBUG COLON: Starting with content: 'if True\n    print('hello')'\nDEBUG COLON: Content repr: \"if True\\n    print('hello')\"\nDEBUG COLON: Split into 2 lines: ['if True', \"    print('hello')\"]\nDEBUG COLON: Processing line 0: 'if True'\nDEBUG COLON: Stripped line: 'if True'\nDEBUG COLON: Checking patterns for line 0\nDEBUG COLON: Found match for line: 'if True'\nDEBUG COLON: code_part is: 'if True'\nDEBUG COLON: endswith(':')? False\nFixed missing colon on line 1: if True:\nAdded pass block after line 1\nDEBUG COLON: Processing line 1: '    pass'\nDEBUG COLON: Stripped line: 'pass'\nDEBUG COLON: Checking patterns for line 1\nDEBUG COLON: Processing line 2: '    print('hello')'\nDEBUG COLON: Stripped line: 'print('hello')'\nDEBUG COLON: Checking patterns for line 2\nDEBUG: Fixed content length: 36 chars\nDEBUG: Content changed: True\nSuccessfully applied missing_colon fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp7j5uxjue.py",
-      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 168, in run_script_with_fixes\n    runpy.run_path(script_path, run_name=\"__main__\")\n  File \"<frozen runpy>\", line 286, in run_path\n  File \"<frozen runpy>\", line 259, in _get_code_from_file\n  File \"C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp7j5uxjue.py\", line 1\n    if True\n           ^\nSyntaxError: expected ':'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\__main__.py\", line 9, in <module>\n    main()\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\autofix_cli_interactive.py\", line 782, in main\n    success = fixer.run_script_with_fixes(args.script_path)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 181, in run_script_with_fixes\n    self._clear_module_cache(script_path)\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'PythonFixer' object has no attribute '_clear_module_cache'",
-      "correct_prediction": false
+      "actual": "SUCCESS",
+      "success": true,
+      "output": "DEBUG: Attempting to fix missing_colon in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp9eqz2wbt.py\nDEBUG: Original content length: 26 chars\nDEBUG: Applying missing colon fix\nDEBUG COLON: Starting with content: 'if True\n    print('hello')'\nDEBUG COLON: Content repr: \"if True\\n    print('hello')\"\nDEBUG COLON: Split into 2 lines: ['if True', \"    print('hello')\"]\nDEBUG COLON: Processing line 0: 'if True'\nDEBUG COLON: Stripped line: 'if True'\nDEBUG COLON: Checking patterns for line 0\nDEBUG COLON: Found match for line: 'if True'\nDEBUG COLON: code_part is: 'if True'\nDEBUG COLON: endswith(':')? False\nFixed missing colon on line 1: if True:\nAdded pass block after line 1\nDEBUG COLON: Processing line 1: '    pass'\nDEBUG COLON: Stripped line: 'pass'\nDEBUG COLON: Checking patterns for line 1\nDEBUG COLON: Processing line 2: '    print('hello')'\nDEBUG COLON: Stripped line: 'print('hello')'\nDEBUG COLON: Checking patterns for line 2\nDEBUG: Fixed content length: 36 chars\nDEBUG: Content changed: True\nSuccessfully applied missing_colon fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp9eqz2wbt.py\nhello",
+      "error": "",
+      "correct_prediction": true
     },
     {
       "name": "simple_indentation",
       "description": "Simple indentation error",
       "expected": "SUCCESS",
-      "actual": "FAILED",
-      "success": false,
-      "output": "DEBUG: Attempting to fix indentation_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpdpa9_jsc.py\nDEBUG: Original content length: 26 chars\nDEBUG: Applying indentation syntax fix\nAdded indentation to line 2\nDEBUG: Fixed content length: 30 chars\nDEBUG: Content changed: True\nSuccessfully applied indentation_syntax fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpdpa9_jsc.py",
-      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 168, in run_script_with_fixes\n    runpy.run_path(script_path, run_name=\"__main__\")\n  File \"<frozen runpy>\", line 286, in run_path\n  File \"<frozen runpy>\", line 259, in _get_code_from_file\n  File \"C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpdpa9_jsc.py\", line 2\n    print('hello')\n    ^\nIndentationError: expected an indented block after function definition on line 1\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\__main__.py\", line 9, in <module>\n    main()\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\autofix_cli_interactive.py\", line 782, in main\n    success = fixer.run_script_with_fixes(args.script_path)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 181, in run_script_with_fixes\n    self._clear_module_cache(script_path)\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'PythonFixer' object has no attribute '_clear_module_cache'",
-      "correct_prediction": false
+      "actual": "SUCCESS",
+      "success": true,
+      "output": "DEBUG: Attempting to fix indentation_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp28y6bk35.py\nDEBUG: Original content length: 26 chars\nDEBUG: Applying indentation syntax fix\nAdded indentation to line 2\nDEBUG: Fixed content length: 30 chars\nDEBUG: Content changed: True\nSuccessfully applied indentation_syntax fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp28y6bk35.py",
+      "error": "",
+      "correct_prediction": true
     },
     {
       "name": "missing_parenthesis",
       "description": "Python 2 style print statement",
       "expected": "SUCCESS",
-      "actual": "FAILED",
-      "success": false,
-      "output": "DEBUG: Attempting to fix print_statement in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpx6qhmoz9.py\nDEBUG: Original content length: 19 chars\nDEBUG: Applying print statement fix\nDEBUG: *** USING FIXED VERSION OF _fix_print_statements ***\nDEBUG: Line 1 contains 'print ': print 'hello world'\nDEBUG: Processing line 1: 'print 'hello world''\nDEBUG: CHANGED line 1\nDEBUG: FROM: 'print 'hello world''\nDEBUG: TO:   'print('hello world')'\nDEBUG: Total changes made: True\nDEBUG: Fixed content length: 20 chars\nDEBUG: Content changed: True\nSuccessfully applied print_statement fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpx6qhmoz9.py",
-      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 168, in run_script_with_fixes\n    runpy.run_path(script_path, run_name=\"__main__\")\n  File \"<frozen runpy>\", line 286, in run_path\n  File \"<frozen runpy>\", line 259, in _get_code_from_file\n  File \"C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpx6qhmoz9.py\", line 1\n    print 'hello world'\n    ^^^^^^^^^^^^^^^^^^^\nSyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\__main__.py\", line 9, in <module>\n    main()\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\autofix_cli_interactive.py\", line 782, in main\n    success = fixer.run_script_with_fixes(args.script_path)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 181, in run_script_with_fixes\n    self._clear_module_cache(script_path)\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'PythonFixer' object has no attribute '_clear_module_cache'",
-      "correct_prediction": false
+      "actual": "SUCCESS",
+      "success": true,
+      "output": "DEBUG: Attempting to fix print_statement in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpae9r2mnw.py\nDEBUG: Original content length: 19 chars\nDEBUG: Applying print statement fix\nDEBUG: *** USING FIXED VERSION OF _fix_print_statements ***\nDEBUG: Line 1 contains 'print ': print 'hello world'\nDEBUG: Processing line 1: 'print 'hello world''\nDEBUG: CHANGED line 1\nDEBUG: FROM: 'print 'hello world''\nDEBUG: TO:   'print('hello world')'\nDEBUG: Total changes made: True\nDEBUG: Fixed content length: 20 chars\nDEBUG: Content changed: True\nSuccessfully applied print_statement fix to C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpae9r2mnw.py\nhello world",
+      "error": "",
+      "correct_prediction": true
     },
     {
       "name": "simple_name_error",
@@ -132,7 +132,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": false,
-      "output": "NameError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpw_t1dl_o.py\nUndefined name: 'y'\n\nSuggestions:\n  1. Check variable/function spelling\n  2. Define variable before use\n  3. Import missing module if needed\n\nNameError requires manual review - PARTIAL result",
+      "output": "NameError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmphfapafvc.py\nUndefined name: 'y'\n\nSuggestions:\n  1. Check variable/function spelling\n  2. Define variable before use\n  3. Import missing module if needed\n\nNameError requires manual review - PARTIAL result",
       "error": "Could not auto-resolve NameError",
       "correct_prediction": true
     },
@@ -142,7 +142,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": true,
-      "output": "TypeError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpkxx65vvd.py\nError: can only concatenate str (not \"int\") to str\nLine: 1\n\nSuggested fixes:\n  1. Convert numbers to strings: str(number)\n  2. Use f-strings: f'text{variable}'\n  3. Check variable types before operations\nString concatenation fix: result = 'hello' + str(5)\n\nTypeError requires manual review - PARTIAL result",
+      "output": "TypeError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpyues77bs.py\nError: can only concatenate str (not \"int\") to str\nLine: 1\n\nSuggested fixes:\n  1. Convert numbers to strings: str(number)\n  2. Use f-strings: f'text{variable}'\n  3. Check variable types before operations\nString concatenation fix: result = 'hello' + str(5)\n\nTypeError requires manual review - PARTIAL result",
       "error": "",
       "correct_prediction": true
     },
@@ -163,7 +163,7 @@
       "actual": "FAILED",
       "success": false,
       "output": "",
-      "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 168, in run_script_with_fixes\n    runpy.run_path(script_path, run_name=\"__main__\")\n  File \"<frozen runpy>\", line 287, in run_path\n  File \"<frozen runpy>\", line 98, in _run_module_code\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp0gs7thdk.py\", line 1, in <module>\n    from module_a import function_that_imports_this_file\nModuleNotFoundError: No module named 'module_a'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\__main__.py\", line 9, in <module>\n    main()\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\autofix_cli_interactive.py\", line 782, in main\n    success = fixer.run_script_with_fixes(args.script_path)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Dana\\autofix-python-engine\\autofix-python-engine-2\\autofix\\python_fixer.py\", line 181, in run_script_with_fixes\n    self._clear_module_cache(script_path)\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'PythonFixer' object has no attribute '_clear_module_cache'",
+      "error": "Maximum recursion depth (3) reached. Stopping to prevent infinite loop.",
       "correct_prediction": true
     },
     {
@@ -182,7 +182,7 @@
       "expected": "PARTIAL",
       "actual": "PARTIAL",
       "success": false,
-      "output": "AttributeError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp31zxi4qx.py\nModule: matplotlib.pyplot\nMissing attribute: hold\n\nSuggestions:\n  1. Check object type and available methods\n  2. Verify attribute/method name spelling\n  3. Check documentation for deprecated methods\n  4. Update to newer API if method is deprecated\n\nSpecific fix for matplotlib:\n  plt.hold() was deprecated - remove this line\n  Multiple plot calls are now held by default\n\nAttributeError requires manual review - PARTIAL result",
+      "output": "AttributeError detected in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmp86zadgch.py\nModule: matplotlib.pyplot\nMissing attribute: hold\n\nSuggestions:\n  1. Check object type and available methods\n  2. Verify attribute/method name spelling\n  3. Check documentation for deprecated methods\n  4. Update to newer API if method is deprecated\n\nSpecific fix for matplotlib:\n  plt.hold() was deprecated - remove this line\n  Multiple plot calls are now held by default\n\nAttributeError requires manual review - PARTIAL result",
       "error": "Could not auto-resolve AttributeError",
       "correct_prediction": true
     },
@@ -192,7 +192,7 @@
       "expected": "FAILED",
       "actual": "FAILED",
       "success": false,
-      "output": "DEBUG: Attempting to fix general_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpwuwxt3ao.py\nDEBUG: Original content length: 8 chars\nDEBUG: Applying general fixes for general_syntax\nDEBUG COLON: Starting with content: 'x = 10 +'\nDEBUG COLON: Content repr: 'x = 10 +'\nDEBUG COLON: Split into 1 lines: ['x = 10 +']\nDEBUG COLON: Processing line 0: 'x = 10 +'\nDEBUG COLON: Stripped line: 'x = 10 +'\nDEBUG COLON: Checking patterns for line 0\nDEBUG: Fixed content length: 8 chars\nDEBUG: Content changed: False\nDEBUG: No changes made to content",
+      "output": "DEBUG: Attempting to fix general_syntax in C:\\Users\\Dana\\AppData\\Local\\Temp\\tmpsvde32m3.py\nDEBUG: Original content length: 8 chars\nDEBUG: Applying general fixes for general_syntax\nDEBUG COLON: Starting with content: 'x = 10 +'\nDEBUG COLON: Content repr: 'x = 10 +'\nDEBUG COLON: Split into 1 lines: ['x = 10 +']\nDEBUG COLON: Processing line 0: 'x = 10 +'\nDEBUG COLON: Stripped line: 'x = 10 +'\nDEBUG COLON: Checking patterns for line 0\nDEBUG: Fixed content length: 8 chars\nDEBUG: Content changed: False\nDEBUG: No changes made to content",
       "error": "Could not auto-resolve general_syntax",
       "correct_prediction": true
     }

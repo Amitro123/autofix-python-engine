@@ -19,10 +19,11 @@ import runpy
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+import sys
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
-from .unified_syntax_handler import create_syntax_error_handler
+from autofix.handlers.syntax_error_handler import create_syntax_error_handler
 from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 
 from autofix.handlers.key_error_handler import KeyErrorHandler
@@ -236,8 +237,6 @@ class PythonFixer:
             self.logger.info(f"Auto-install disabled. Please install manually: pip install {package_name}")
             return False
         
-        installer = PackageInstaller(auto_install=True)
-        return installer.install_package(package_name)
 
     def _fix_module_not_found_error(self, error: ParsedError) -> bool:
         """Fix ModuleNotFoundError - delegate to handler"""
@@ -270,7 +269,6 @@ class PythonFixer:
         _, _, details = handler.analyze_error(error.error_message, error.file_path)
         return handler.apply_fix("ModuleNotFoundError", error.file_path, details)
 
-    
     def _fix_name_error(self, error: ParsedError) -> bool:
         """Handle NameError - provide suggestions only (PARTIAL result)"""
         
@@ -328,8 +326,6 @@ class PythonFixer:
         
         # Handler will print suggestions and return False (PARTIAL)
         return handler.apply_fix("IndexError", error.file_path, details)
-
-
         
     def _fix_key_error(self, error: ParsedError) -> bool:
         """Handle KeyError - delegate to KeyErrorHandler"""
@@ -371,7 +367,6 @@ class PythonFixer:
             return None
         
         return line_idx
-    
 
     def _create_safe_access(self, list_name: str, index_expr: str, default_value: str) -> str:
         """Create safe access pattern for indexing"""
@@ -637,6 +632,32 @@ def {function_name}({param_str}):
         except Exception as e:
             self.logger.error(f"Error fixing standard library import: {e}")
             return False
+        
+    def _clear_module_cache(self, script_path: str):
+        """Clear module cache to allow reloading of modified modules"""
+        
+        try:
+            # Get the module name from script path
+            script_file = Path(script_path)
+            module_name = script_file.stem
+            
+            # Remove from sys.modules if exists
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+                self.logger.debug(f"Cleared module cache for: {module_name}")
+                
+            # Also clear __pycache__ if needed
+            pycache_dir = script_file.parent / '__pycache__'
+            if pycache_dir.exists():
+                import shutil
+                try:
+                    shutil.rmtree(pycache_dir)
+                    self.logger.debug(f"Cleared __pycache__ directory")
+                except Exception as e:
+                    self.logger.debug(f"Could not clear __pycache__: {e}")
+                    
+        except Exception as e:
+            self.logger.debug(f"Error clearing module cache: {e}")
         
     def _move_function_to_top(self, function_name: str, script_path: str) -> bool:
         """Move a function definition to the top of the file to resolve forward references"""

@@ -7,6 +7,10 @@ import shutil
 from typing import Tuple, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+
+from ..logging_utils import get_logger
+
 
 class SyntaxErrorType(Enum):
     """Enumeration of different syntax error types"""
@@ -37,7 +41,13 @@ class UnifiedSyntaxErrorHandler:
     Combines logic from both autofix_cli and python_fixer.
     """
     
-    def __init__(self):
+    def __init__(self, logger=None):
+
+        if logger is None:
+            self.logger = get_logger("unified_syntax_handler")
+        else:
+            self.logger = logger
+
         # Control structure patterns for fixing missing colons
         self.control_structure_patterns = [
             r'^(\s*)(if\s+.+?)(\s*#.*)?$',           # if condition
@@ -151,6 +161,39 @@ class UnifiedSyntaxErrorHandler:
         
         return error_type, suggestion, details
     
+    def apply_fix(self, error_type: str, file_path: str, details: Dict) -> bool:
+        """
+        Wrapper for compatibility with other handlers
+
+        Args:
+        error_type: String name of error type
+        file_path: Path to file to fix
+        details: Error details dict
+        Returns: bool: True if fix was applied successfully
+        """  
+        # Convert string to SyntaxErrorType enum
+        if isinstance(error_type, str):
+            # Try to match the error_type string to enum
+            error_lower = error_type.lower().replace('error', '').strip()
+            
+            # Map common error names to enum
+            error_map = {
+                'syntax': SyntaxErrorType.GENERAL_SYNTAX, #amitro improved mapping with constants file.
+                'general_syntax': SyntaxErrorType.GENERAL_SYNTAX,
+                'missing_colon': SyntaxErrorType.MISSING_COLON,
+                'print_statement': SyntaxErrorType.PRINT_STATEMENT,
+                'broken_keywords': SyntaxErrorType.BROKEN_KEYWORDS,
+                'indentation_syntax': SyntaxErrorType.INDENTATION_SYNTAX,
+            }
+            
+            error_enum = error_map.get(error_lower, SyntaxErrorType.GENERAL_SYNTAX)
+        else:
+            error_enum = error_type
+            
+        self.logger.info(f"Applying syntax fix for {error_enum.value}")
+        return self.apply_syntax_fix(file_path, error_enum, details)
+
+    
     def _classify_syntax_error(self, error_output: str) -> Tuple[SyntaxErrorType, str]:
         """Classify the specific type of syntax error using detection patterns"""
         error_output_lower = error_output.lower()
@@ -211,7 +254,7 @@ class UnifiedSyntaxErrorHandler:
             print(f"DEBUG: Original content length: {len(content)} chars")
             
             # Apply specific fixes based on error type
-            if error_type == SyntaxErrorType.MISSING_COLON:
+            if error_type == SyntaxErrorType.MISSING_COLON:#amitro todo - improve and remove debug prints
                 print("DEBUG: Applying missing colon fix")
                 content = self._fix_missing_colons(content, details)
             
