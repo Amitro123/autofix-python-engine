@@ -71,3 +71,5 @@ firebase-key.json
 *.db
 *.sqlite
 *.sqlite3
+# Duplicate project folders
+autofix-python-engine*/
