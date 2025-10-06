@@ -20,8 +20,8 @@ try:
     from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
     from .constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
 except ImportError:
-    from unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
-    from autofix.constants import ErrorType, MetadataKey, FixStatus
+    from .unified_syntax_handler import create_syntax_error_handler, SyntaxErrorType
+    from .constants import ErrorType, MetadataKey, FixStatus
 from .cli_parser import create_parser, validate_args, validate_script_path
 from .import_suggestions import (
     IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,

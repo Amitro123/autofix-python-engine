@@ -707,9 +707,98 @@ def {function_name}({param_str}):
             self.logger.error(f"Error installing {package_name}: {e}")
             return False
 
+<<<<<<< HEAD
     def _fix_syntax_error(self, error: ParsedError) -> bool:
         """Fix SyntaxError using unified handler"""
         handler = create_syntax_error_handler()
+=======
+    def _resolve_package_name(self, module_name: str) -> Optional[str]:
+        """Resolve module name to actual pip package name"""
+        return MODULE_TO_PACKAGE.get(module_name)
+
+    def _fix_common_syntax_issues(self, file_path: str, error_message: str) -> bool:
+        """Fix common syntax issues like missing colons, parentheses, etc."""
+        try:
+            content = self._read_file_content(file_path)
+            lines = content.split('\n')
+            modified = False
+
+            # Create backup before modifying
+            self._backup_file(file_path)
+
+            # Fix missing colons after if/for/while/def/class statements
+            if "expected ':'" in error_message.lower() or ("invalid syntax" in error_message.lower() and ":" in error_message):
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if (stripped.startswith(('if ', 'for ', 'while ', 'def ', 'class ', 'elif ', 'else', 'try', 'except', 'finally'))
+                        and not stripped.endswith(':') and not stripped.endswith('\\')
+                        and '#' not in stripped):
+                        lines[i] = line + ':'
+                        modified = True
+                        self.logger.info(f"Added missing colon to line {i+1}: {stripped}")
+
+            # Fix missing parentheses in print statements (Python 2 to 3)
+            if "print" in error_message.lower():
+                for i, line in enumerate(lines):
+                    if 'print ' in line and not line.strip().startswith('#'):
+                        # Simple print statement fix
+                        if not ('print(' in line):
+                            lines[i] = line.replace('print ', 'print(') + ')'
+                            modified = True
+                            self.logger.info(f"Fixed print statement on line {i+1}")
+
+            if modified:
+                new_content = '\n'.join(lines)
+                Path(file_path).write_text(new_content, encoding="utf-8")
+                return True
+
+        except Exception as e:
+            self.logger.error(f"Error fixing syntax issues: {e}")
+
+        return False
+    
+    def _apply_basic_formatting(self, file_path: str) -> bool:
+        """Apply basic formatting fixes to resolve syntax issues"""
+        try:
+            content = self._read_file_content(file_path)
+            
+            # Create backup before modifying
+            self._backup_file(file_path)
+            
+            # Basic formatting fixes
+            lines = content.split('\n')
+            formatted_lines = []
+            
+            for line in lines:
+                # Fix common indentation issues
+                if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+                    # Check if this should be indented (simple heuristic)
+                    if any(keyword in line for keyword in ['return ', 'print(', 'pass', '=']):
+                        # Look at previous line to see if it needs indentation
+                        if formatted_lines and formatted_lines[-1].strip().endswith(':'):
+                            line = '    ' + line
+                
+                formatted_lines.append(line)
+            
+            # Check if any changes were made
+            new_content = '\n'.join(formatted_lines)
+            if new_content != content:
+                Path(file_path).write_text(new_content, encoding="utf-8")
+                self.logger.info("Applied basic formatting fixes")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error applying formatting: {e}")
+            
+        return False
+    
+    def _is_likely_test_module(self, module_name: str) -> bool:
+        """Detect if a module name appears to be a test/placeholder"""
+        test_indicators = [
+            "non_existent", "nonexistent", "fake", "test", "dummy", 
+            "placeholder", "example", "sample", "mock", "invalid"
+        ]
+>>>>>>> 598d1d9478274f85337861d820b7bfa445af1178
         
         if handler.can_handle(error.error_message):
             error_type, suggestion, details = handler.analyze_error(
@@ -743,7 +832,7 @@ def {function_name}({param_str}):
                     
                     # Write back to file
                     new_content = '\n'.join(lines)
-                    script_file.write_text(new_content, encoding="utf-8")
+                    Path(error.file_path).write_text(new_content, encoding="utf-8")
                     return True
             
             return False
@@ -781,7 +870,7 @@ Contains placeholder implementations for missing functionality
 
 def placeholder_function():
     """Auto-generated placeholder function"""
-    return "Module {module_name} created by AutoFix"
+    return f"Module {module_name} created by AutoFix"
 '''
                 module_file.write_text(module_content, encoding="utf-8")
                 return True
@@ -872,7 +961,7 @@ def placeholder_function():
             
             # Write back to file
             new_content = '\n'.join(final_lines)
-            script_file.write_text(new_content, encoding="utf-8")
+            Path(script_path).write_text(new_content, encoding="utf-8")
             
             self.logger.info(f"Successfully moved function '{function_name}' to resolve forward reference")
             return True

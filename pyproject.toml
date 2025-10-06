@@ -40,7 +40,7 @@ dev = [
 ]
 
 [project.scripts]
-autofix = "autofix.cli:main"
+autofix = "autofix.autofix_cli_interactive:main"
 
 [project.urls]
 Homepage = "https://github.com/autofix/autofix"
