@@ -6,7 +6,11 @@ Tests all enhanced error handlers with advanced logic from python_fixer.py
 
 import os
 import tempfile
-from autofix_cli_interactive import AutoFixer, ModuleNotFoundHandler, TypeErrorHandler, IndexErrorHandler, SyntaxErrorHandler
+from autofix.cli.autofix_cli_interactive import AutoFixer
+from autofix.handlers.module_not_found_handler import ModuleNotFoundHandler
+from autofix.handlers.type_error_handler import TypeErrorHandler
+from autofix.handlers.index_error_handler import IndexErrorHandler
+from autofix.handlers.syntax_error_handler import UnifiedSyntaxErrorHandler as SyntaxErrorHandler
 
 def test_module_not_found_handler():
     """Test enhanced ModuleNotFoundHandler with advanced package resolution"""
