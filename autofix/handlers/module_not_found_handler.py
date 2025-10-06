@@ -35,6 +35,22 @@ except ImportError:
     from autofix.constants import ValidationPatterns
 
 
+# A strict allowlist of packages that are considered safe for auto-installation.
+SAFE_PACKAGE_ALLOWLIST = {
+    "requests", "numpy", "pandas", "matplotlib", "scipy", "sklearn", "scikit-learn",
+    "tensorflow", "torch", "flask", "django", "fastapi", "sqlalchemy",
+    "psycopg2", "psycopg2-binary", "pymongo", "redis", "celery", "pytest", "black",
+    "flake8", "mypy", "pydantic", "click", "typer", "rich", "tqdm",
+    "pillow", "Pillow", "opencv-python", "beautifulsoup4", "lxml", "selenium",
+    "openpyxl", "xlsxwriter", "python-dateutil", "pytz", "arrow",
+    "cryptography", "bcrypt", "jwt", "PyJWT", "passlib", "httpx", "aiohttp",
+    "uvicorn", "gunicorn", "streamlit", "dash", "plotly", "seaborn",
+    "statsmodels", "networkx", "sympy", "nltk", "spacy", "transformers",
+    "pyyaml", "mysqlclient", "requests-oauthlib", "google-cloud",
+    "torchvision", "huggingface-hub",
+}
+
+
 # ========================================================================
 # SECTION 1: MODULE VALIDATION
 # ========================================================================
@@ -246,7 +262,7 @@ class PackageInstaller:
     
     def install_package(self, package_name: str, verify: bool = True) -> bool:
         """
-        Install a Python package using pip
+        Install a Python package using pip with security validation.
         
         Args:
             package_name: Name of the package to install
@@ -255,17 +271,41 @@ class PackageInstaller:
         Returns:
             True if installation successful, False otherwise
         """
-        if not self.auto_install:
-            self.logger.warning(f"Auto-install disabled, skipping {package_name}")
-            return False
-        
         try:
             # Use module mapping if available
             install_name = MODULE_TO_PACKAGE.get(package_name, package_name)
             if install_name != package_name:
-                self.logger.info(f"Mapping {package_name} -> {install_name}")
+                self.logger.info(f"Mapping module '{package_name}' to package '{install_name}'")
+
+            # 1. Security Validation
+            is_trusted = install_name in SAFE_PACKAGE_ALLOWLIST
+            if not is_trusted:
+                self.logger.warning(f"SECURITY: Attempt to install untrusted package '{install_name}' identified.")
+                self.logger.warning(f"To trust this package, add '{install_name}' to SAFE_PACKAGE_ALLOWLIST in module_not_found_handler.py.")
+                if self.auto_install:
+                    self.logger.error(f"SKIPPING installation of untrusted package '{install_name}' in auto-install mode.")
+                    return False
+
+            # 2. User Confirmation (for interactive mode)
+            if not self.auto_install:
+                if is_trusted:
+                    prompt_message = f"Proceed with installation of trusted package '{install_name}'? (y/n): "
+                else: # Untrusted package
+                    print(f"WARNING: The package '{install_name}' is not on the list of trusted packages.")
+                    prompt_message = f"Are you sure you want to install it? (y/n): "
+
+                user_input = input(prompt_message).strip().lower()
+
+                if user_input not in ('y', 'yes'):
+                    log_message = f"User rejected installation of {'trusted' if is_trusted else 'untrusted'} package '{install_name}'."
+                    self.logger.info(log_message)
+                    return False
+                else:
+                    log_message = f"User approved installation of {'trusted' if is_trusted else 'untrusted'} package '{install_name}'."
+                    self.logger.info(log_message)
             
-            self.logger.info(f"Installing package: {install_name}")
+            # 3. Installation
+            self.logger.info(f"Attempting to install package: {install_name}")
             
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", install_name],
@@ -276,11 +316,8 @@ class PackageInstaller:
             
             if result.returncode == 0:
                 self.logger.info(f"Successfully installed {install_name}")
-                
-                # Verify import works if requested
                 if verify:
                     return self.verify_installation(package_name)
-                
                 return True
             else:
                 self.logger.error(f"Failed to install {install_name}: {result.stderr}")
@@ -290,7 +327,7 @@ class PackageInstaller:
             self.logger.error(f"Timeout ({self.timeout}s) while installing {package_name}")
             return False
         except Exception as e:
-            self.logger.error(f"Error installing {package_name}: {e}")
+            self.logger.error(f"Error during package installation for {package_name}: {e}")
             return False
     
     def verify_installation(self, module_name: str) -> bool:
