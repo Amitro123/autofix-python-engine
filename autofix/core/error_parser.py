@@ -151,7 +151,7 @@ class ErrorParser:
         
         try:
             line_number = self._extract_line_number(exception)
-        except:
+        except (AttributeError, ValueError):
             line_number = None
         
         if isinstance(exception, KeyError):

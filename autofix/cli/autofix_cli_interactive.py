@@ -4,7 +4,6 @@ import sys
 import os
 import re
 import threading
-import time
 import json
 import argparse
 from pathlib import Path
