@@ -73,3 +73,90 @@ firebase-key.json
 *.sqlite3
 # Duplicate project folders
 autofix-python-engine*/
+
+# Build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.autofix.bak
+
+# Environment
+.env
+venv/
+.venv/
+ENV/
+
+# Secrets
+firebase-key.json
+*-key.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Reports
+*_report.txt
+*_report.json
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing
+.pytest_cache/
+.tox/
+*.autofix.bak
+
+# Environment
+.env
+venv/
+.venv/
+ENV/
+env/
+
+# Secrets & Keys
+firebase-key.json
+*-key.json
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reports
+*_report.txt
+*_report.json
+*.log

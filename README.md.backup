@@ -23,7 +23,7 @@
 | Metric | Status |
 |--------|--------|
 | Valid Python Files |  58/58 (100%) |
-| | Test Coverage |  30 passing tests (24% coverage) |
+| Test Coverage |  25 test files |
 | Error Types Covered |  7/7 (100%) |
 | Health Score |  80/100 |
 | Syntax Issues |  0 |
