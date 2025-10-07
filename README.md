@@ -14,7 +14,7 @@ Install
 pip install -r requirements.txt
 
 Run your first demo
-python -m autofix.cli.autofix_cli_interactive demos/demo_missing_module.py --auto-install
+python -m autofix.cli.autofix_cli_interactive demo_missing_module.py --auto-install
 
 Try it on your script
 python -m autofix.cli.autofix_cli_interactive your_script.py
@@ -94,7 +94,7 @@ cd autofix-python-engine
 pip install -r requirements.txt
 
 # Test it with a demo
-python -m autofix.cli.autofix_cli_interactive demos/demo_missing_module.py --auto-install
+python -m autofix.cli.autofix_cli_interactive demo_missing_module.py --auto-install
 \\\
 
 ### Optional: Firebase Metrics Setup
