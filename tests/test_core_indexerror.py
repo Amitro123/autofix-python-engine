@@ -3,7 +3,7 @@
 Test IndexError fixing using core engine components
 """
 
-from autofix.core.python_fixer import PythonFixer
+from autofix.python_fixer import PythonFixer
 from autofix.core.error_parser import ErrorParser
 import subprocess
 import sys

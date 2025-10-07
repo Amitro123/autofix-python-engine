@@ -1,5 +1,13 @@
-# Minimal dependencies for AutoFix Python error fixer
-# No AI dependencies, no multi-language support, no VSCode extension
+﻿# AutoFix Python Engine - Dependencies
 
-# Core Python standard library modules are used
-# No external dependencies required for basic functionality
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: Firebase (for metrics)
+firebase-admin>=6.0.0
+
+# Optional: Code quality
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.0.0
