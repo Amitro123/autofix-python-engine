@@ -8,6 +8,23 @@
 
 ---
 
+## 🚀 Quick Start
+
+Install
+pip install -r requirements.txt
+
+Run your first demo
+python -m autofix.cli.autofix_cli_interactive demos/demo_missing_module.py --auto-install
+
+Try it on your script
+python -m autofix.cli.autofix_cli_interactive your_script.py
+
+**That's it!** AutoFix detects errors and suggests fixes automatically.
+
+---
+
+
+
 ##  Project Status
 
 -  **Production Ready**: 80/100 health score with comprehensive test coverage
@@ -76,8 +93,8 @@ cd autofix-python-engine
 # Install dependencies
 pip install -r requirements.txt
 
-# Verify installation
-python -m autofix --version
+# Test it with a demo
+python -m autofix.cli.autofix_cli_interactive demos/demo_missing_module.py --auto-install
 \\\
 
 ### Optional: Firebase Metrics Setup
