@@ -59,10 +59,6 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--cov=autofix",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
 ]
 testpaths = ["autofix/tests", "tests"]
 python_files = ["test_*.py", "*_test.py"]

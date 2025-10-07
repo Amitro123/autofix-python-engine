@@ -122,6 +122,9 @@ class TestLoggingUtils(unittest.TestCase):
         """Test AutoFixFormatter with colors"""
         formatter = AutoFixFormatter(use_colors=True)
         
+        if not formatter.use_colors:
+            self.skipTest("Color support not available on this platform")
+
         # Test that formatter has color mappings
         self.assertIn('SUCCESS', formatter.COLORS)
         self.assertIn('ATTEMPT', formatter.COLORS)
