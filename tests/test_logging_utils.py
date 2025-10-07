@@ -156,7 +156,7 @@ class TestLoggingUtils(unittest.TestCase):
         self.assertEqual(logger.level, logging.INFO)
         self.assertGreater(len(logger.handlers), 0)
     
-    @patch('logging_utils.COLORAMA_AVAILABLE', False)
+    @patch('autofix.helpers.logging_utils.COLORAMA_AVAILABLE', False)
     def test_formatter_fallback_no_colorama(self):
         """Test formatter fallback when colorama is not available"""
         formatter = AutoFixFormatter(use_colors=True)
