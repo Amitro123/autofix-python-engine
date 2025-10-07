@@ -160,3 +160,21 @@ Thumbs.db
 *_report.txt
 *_report.json
 *.log
+
+# Build artifacts (generated files)
+*.egg-info/
+.coverage
+.pytest_cache/
+htmlcov/
+coverage.xml
+*.pyc
+__pycache__/
+
+# Build artifacts
+*.egg-info/
+.coverage
+.pytest_cache/
+htmlcov/
+coverage.xml
+*.pyc
+__pycache__/
