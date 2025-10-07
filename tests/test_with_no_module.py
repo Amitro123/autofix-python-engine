@@ -11,7 +11,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from python_fixer import PythonFixer
+from autofix.core.python_fixer import PythonFixer
 
 
 class TestWithNoModule(unittest.TestCase):

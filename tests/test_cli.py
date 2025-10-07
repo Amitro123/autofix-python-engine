@@ -16,7 +16,7 @@ from io import StringIO
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cli import AutoFixCLI
+from autofix.cli.autofix_cli_interactive import AutoFixer as AutoFixCLI
 
 
 class TestAutoFixCLI(unittest.TestCase):
@@ -164,7 +164,7 @@ class TestAutoFixCLI(unittest.TestCase):
     
     def test_logging_levels(self):
         """Test logging level configuration and custom log levels"""
-        from logging_utils import setup_logging, get_logger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
+        from autofix.helpers.logging_utils import setup_logging, get_logger, AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT
         import logging
         
         # Test verbose mode

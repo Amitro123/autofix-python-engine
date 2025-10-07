@@ -15,7 +15,7 @@ from unittest.mock import patch
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from logging_utils import (
+from autofix.helpers.logging_utils import (
     setup_logging, get_logger, temporary_log_level, ProgressLogger,
     AUTOFIX_SUCCESS, AUTOFIX_ATTEMPT, AutoFixFormatter
 )

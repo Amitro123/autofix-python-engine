@@ -39,18 +39,18 @@ from .handlers.module_not_found_handler import (
 # Handle both relative and absolute imports
 try:
     from .constants import ErrorType
-    from .error_parser import ErrorParser, ParsedError
+    from .core.error_parser import ErrorParser, ParsedError
     from .helpers.logging_utils import get_logger
-    from .import_suggestions import ( #amitro changed
+    from .import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
         KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
     )
 except ImportError:
     # Fallback for direct execution
     from autofix.constants import ErrorType
-    from error_parser import ErrorParser, ParsedError
+    from autofix.core.error_parser import ErrorParser, ParsedError
     from autofix.helpers.logging_utils import get_logger
-    from import_suggestions import (
+    from autofix.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
         KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
     )
