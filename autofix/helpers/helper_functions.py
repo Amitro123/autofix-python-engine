@@ -59,7 +59,7 @@ def safe_dict_get(dictionary: Dict[str, Any], key: str, default: Any = None, val
     """Enhanced safe dictionary access with type validation"""
     try:
         if not isinstance(dictionary, dict):
-            logger.warning("Expected dictionary, got {type(dictionary)}")
+            logger.warning(f"Expected dictionary, got {type(dictionary)}")
             return default
         
         value = dictionary.get(key, default)

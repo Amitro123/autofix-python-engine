@@ -2,7 +2,6 @@
 import shutil
 import os
 import tempfile
-import platform
 from pathlib import Path
 
 try:
