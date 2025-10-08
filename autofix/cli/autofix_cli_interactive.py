@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime, timezone
 from ..helpers.logging_utils import get_logger, quick_setup
+from ..helpers.spinner import spinner
 from ..core.error_parser import ErrorParser, ParsedError
 from ..python_fixer import PythonFixer
 try:
@@ -505,41 +506,20 @@ class AutoFixer:
     def run_script(self, script_path: str) -> Tuple[bool, Optional[subprocess.CalledProcessError]]:
         """Run script with loading spinner"""
         logger.info(f"INFO: Running script: {script_path}")
-        
-        spinner_event = threading.Event()
-        spinner_thread = threading.Thread(target=self._loading_spinner, args=(spinner_event,))
-        spinner_thread.start()
 
         try:
-            result = subprocess.run([sys.executable, script_path], 
-                                 capture_output=True, text=True, check=True)
-            spinner_event.set()
-            spinner_thread.join()
-            print("\r" + " " * 30 + "\r", end="")
-            logger.info(f"Script output: {result.stdout.strip()}")
+            with spinner("Running"):
+                result = subprocess.run([sys.executable, script_path], check=True)
+            logger.info("Script executed successfully!")
             return True, None
         except subprocess.CalledProcessError as e:
-            spinner_event.set()
-            spinner_thread.join()
-            print("\r" + " " * 30 + "\r", end="")
-            logger.error(f"Script failed with error: {e.stderr.strip()}")
+            logger.error(f"Script failed with error: {e}")
             return False, e
         except FileNotFoundError:
-            spinner_event.set()
-            spinner_thread.join()
             logger.error(f"ERROR: File not found: {script_path}")
             print(f"ERROR: Script file not found: {script_path}")
             return False, None
-    
-    def _loading_spinner(self, stop_event):
-        """Console spinner for progress indication"""
-        spinner = ['|', '/', '-', '\\']
-        i = 0
-        while not stop_event.is_set():
-            sys.stdout.write(f"\r  Running... {spinner[i % len(spinner)]}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-            i += 1
+
     
     def find_handler(self, error_output: str) -> Optional[ErrorHandler]:
         """Find appropriate handler for the error"""
@@ -829,3 +809,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    

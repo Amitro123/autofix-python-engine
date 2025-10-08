@@ -13,6 +13,7 @@ Handles automatic fixing of common Python errors including:
 
 import ast
 import importlib
+import threading
 import os
 import re
 import runpy
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import sys
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
@@ -27,6 +29,7 @@ from autofix.handlers.syntax_error_handler import create_syntax_error_handler
 from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 
 from autofix.handlers.key_error_handler import KeyErrorHandler
+from autofix.helpers.spinner import spinner
 from autofix.handlers.zero_division_handler import ZeroDivisionHandler
 from autofix.handlers.index_error_handler import IndexErrorHandler
 from autofix.handlers.import_error_handler import ImportErrorHandler
@@ -143,7 +146,7 @@ class PythonFixer:
         if function and module:
             return [f"Add import: from {module} import {function}"]
         return []
-
+    
     def run_script_with_fixes(self, script_path: str, recursion_depth: int = 0) -> bool:
         """
         Run Python script with automatic error fixing
@@ -158,24 +161,27 @@ class PythonFixer:
                 "Stopping to prevent infinite loop."
             )
             return False
-        
+
         try:
             # Save original working directory
             original_cwd = os.getcwd()
             script_dir = Path(script_path).parent
             os.chdir(script_dir)
-            
+
             self.logger.info(f"Running script: {script_path}")
-            runpy.run_path(script_path, run_name="__main__")
+            
+            with spinner("Running script"):
+                runpy.run_path(script_path, run_name="__main__")
+            
             self.logger.info("Script executed successfully!")
             return True
-            
+
         except Exception as e:
             self.logger.info(f"Error detected: {type(e).__name__}: {e}")
-            
+
             # Parse the error into structured format
             parsed_error = self.error_parser.parse_exception(e, script_path)
-            
+
             # Attempt to fix the error
             if self.fix_parsed_error(parsed_error):
                 self.logger.info("Error fixed, retrying script execution...")
@@ -190,6 +196,8 @@ class PythonFixer:
                 return False
         finally:
             os.chdir(original_cwd)
+
+
     
     def fix_parsed_error(self, error: ParsedError) -> bool:
         """
