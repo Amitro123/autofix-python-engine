@@ -431,14 +431,45 @@ Based on comprehensive testing and real-world usage:
 
 ---
 
-##  Known Limitations
+## ⚠️ Known Limitations
 
+AutoFix v1.0 is production-ready for common Python error fixing.
+
+### Error Detection
+- **Runtime-based only**: Detects errors during script execution, not static analysis
+- **Sequential processing**: Handles one error at a time (Python limitation)
+- **Executed code only**: Functions/code that never runs won't be analyzed
+
+### Error Types
+- **Auto-fix**: SyntaxError, ModuleNotFoundError, IndentationError, TabError
+- **Suggestions only**: IndexError, KeyError, TypeError (require manual review)
+- **Limited**: Complex nested logic, deeply nested if-else structures
+
+### File Operations
+- **Single file**: One file at a time (v1.0 limitation)
+- **In-place modification**: Edits files directly (automatic backups created)
+- **File size**: Tested up to 500 lines, best for < 500 lines
+
+### Technical
 - **Scope**: Python-only error fixing (by design)
-- **Complexity**: Handles common errors, not complex logic issues
-- **Heuristic Fixes**: Pattern-based, may not cover all edge cases
-- **File Modification**: Edits files in-place (use rollback/backup features)
-- **Internet Dependency**: Required for pip installs and Firebase metrics
-- **Unicode/BOM**: Windows users may encounter BOM character issues (auto-fixed)
+- **Internet dependency**: Required for pip installs and Firebase metrics
+- **Unicode/BOM**: Windows BOM issues auto-fixed
+- **Heuristic fixes**: Pattern-based, may not cover all edge cases
+
+### Best Suited For
+✅ Small to medium Python scripts (< 500 lines)
+✅ Common errors (syntax, imports, indentation)
+✅ Development and learning environments
+✅ Single-file scripts
+
+### Not Recommended For
+⚠️ Production critical systems without testing
+⚠️ Large codebases (500+ lines per file) without review
+⚠️ Complex business logic errors
+⚠️ Static type checking (use mypy/Pylance)
+
+For detailed information, see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+For testing results, see [TESTING.md](TESTING.md).
 
 ---
 
