@@ -245,45 +245,32 @@ class UnifiedSyntaxErrorHandler:
         Apply the appropriate fix based on error type
         """
         try:
-            print(f"DEBUG: Attempting to fix {error_type.value} in {file_path}")
-            
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             original_content = content
-            print(f"DEBUG: Original content length: {len(content)} chars")
             
             # Apply specific fixes based on error type
-            if error_type == SyntaxErrorType.MISSING_COLON:#amitro todo - improve and remove debug prints
-                print("DEBUG: Applying missing colon fix")
+            if error_type == SyntaxErrorType.MISSING_COLON:
                 content = self._fix_missing_colons(content, details)
             
             elif error_type == SyntaxErrorType.PARENTHESES_MISMATCH:
-                print("DEBUG: Applying parentheses mismatch fix")
                 content = self._fix_parentheses_mismatch(content)
             
             elif error_type == SyntaxErrorType.UNEXPECTED_EOF:
-                print("DEBUG: Applying unexpected EOF fix")
                 content = self._fix_unexpected_eof(content)
             
             elif error_type == SyntaxErrorType.PRINT_STATEMENT:
-                print("DEBUG: Applying print statement fix")
                 content = self._fix_print_statements(content)
             
             elif error_type == SyntaxErrorType.BROKEN_KEYWORDS:
-                print("DEBUG: Applying broken keywords fix")
                 content = self._fix_broken_keywords(content)
             
             elif error_type == SyntaxErrorType.INDENTATION_SYNTAX:
-                print("DEBUG: Applying indentation syntax fix")
                 content = self._fix_basic_indentation(content)
             
             else:
-                print(f"DEBUG: Applying general fixes for {error_type.value}")
                 content = self._apply_general_fixes(content, details)
-            
-            print(f"DEBUG: Fixed content length: {len(content)} chars")
-            print(f"DEBUG: Content changed: {content != original_content}")
             
             # Write back if changes were made
             if content != original_content:
@@ -293,14 +280,13 @@ class UnifiedSyntaxErrorHandler:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 
-                print(f"Successfully applied {error_type.value} fix to {file_path}")
+                self.logger.info(f"Successfully applied {error_type.value} fix to {file_path}")
                 return True
             else:
-                print(f"DEBUG: No changes made to content")
                 return False
             
         except Exception as e:
-            print(f"Failed to fix syntax error: {e}")
+            self.logger.error(f"Failed to fix syntax error: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -311,10 +297,6 @@ class UnifiedSyntaxErrorHandler:
         # Remove BOM if present
         if content.startswith('\ufeff'):
             content = content[1:]
-            print("DEBUG COLON: Removed BOM from content")
-        
-        print(f"DEBUG COLON: Starting with content: '{content}'")
-        print(f"DEBUG COLON: Content repr: {repr(content)}")
         
         # Handle simple cases without newlines (add pass statements)
         stripped = content.strip()
@@ -328,47 +310,37 @@ class UnifiedSyntaxErrorHandler:
         }
         
         if stripped in simple_cases:
-            print(f"DEBUG: Fixed simple case '{stripped}' with pass block")
+            self.logger.debug(f"Fixed simple case '{stripped}' with pass block")
             return simple_cases[stripped]
         
         # Handle multi-line content
         lines = content.split('\n')
-        print(f"DEBUG COLON: Split into {len(lines)} lines: {lines}")
         
         for i, line in enumerate(lines):
-            print(f"DEBUG COLON: Processing line {i}: '{line}'")
             stripped_line = line.strip()
-            print(f"DEBUG COLON: Stripped line: '{stripped_line}'")
             
             # Skip empty lines and comments
             if not stripped_line or stripped_line.startswith('#'):
-                print(f"DEBUG COLON: Skipping line {i} (empty or comment)")
                 continue
                 
-            print(f"DEBUG COLON: Checking patterns for line {i}")
-            
             # Check each control structure pattern
             for pattern in self.control_structure_patterns:
                 match = re.match(pattern, line)
                 if match:
-                    print(f"DEBUG COLON: Found match for line: '{line}'")
                     indent_part = match.group(1)
                     code_part = match.group(2)
                     comment_part = match.group(3) if len(match.groups()) >= 3 and match.group(3) else ""
-                    
-                    print(f"DEBUG COLON: code_part is: '{code_part}'")
-                    print(f"DEBUG COLON: endswith(':')? {code_part.rstrip().endswith(':')}")
                     
                     # Check if colon is missing
                     if not code_part.rstrip().endswith(':'):
                         # Add the colon
                         lines[i] = f"{indent_part}{code_part.rstrip()}:{comment_part}"
-                        print(f"Fixed missing colon on line {i+1}: {lines[i].strip()}")
+                        self.logger.info(f"Fixed missing colon on line {i+1}: {lines[i].strip()}")
                         
                         # Add pass block if this is the last line or next line isn't indented
                         if i == len(lines) - 1 or (i + 1 < len(lines) and not lines[i + 1].strip().startswith(' ')):
                             lines.insert(i + 1, f"{indent_part}    pass")
-                            print(f"Added pass block after line {i+1}")
+                            self.logger.info(f"Added pass block after line {i+1}")
                             
                     break
         
@@ -384,10 +356,10 @@ class UnifiedSyntaxErrorHandler:
             
             if open_count > close_count:
                 lines[i] = line + ')' * (open_count - close_count)
-                print(f"Added {open_count - close_count} closing parentheses to line {i+1}")
+                self.logger.info(f"Added {open_count - close_count} closing parentheses to line {i+1}")
             elif close_count > open_count and i > 0:
                 lines[i-1] = lines[i-1] + '(' * (close_count - open_count)
-                print(f"Added {close_count - open_count} opening parentheses to line {i}")
+                self.logger.info(f"Added {close_count - open_count} opening parentheses to line {i}")
         
         return '\n'.join(lines)
     
@@ -398,10 +370,10 @@ class UnifiedSyntaxErrorHandler:
         # Fix unmatched quotes
         if content.count('"') % 2 == 1:
             content += '"'
-            print("Added missing closing double quote")
+            self.logger.info("Added missing closing double quote")
         if content.count("'") % 2 == 1:
             content += "'"
-            print("Added missing closing single quote")
+            self.logger.info("Added missing closing single quote")
         
         # Fix unmatched brackets
         bracket_pairs = [('(', ')'), ('[', ']'), ('{', '}')]
@@ -411,13 +383,12 @@ class UnifiedSyntaxErrorHandler:
             close_count = content.count(close_char)
             if open_count > close_count:
                 content += close_char * (open_count - close_count)
-                print(f"Added {open_count - close_count} closing {close_char}")
+                self.logger.info(f"Added {open_count - close_count} closing {close_char}")
         
         return content
     
     def _fix_print_statements(self, content: str) -> str:
         """Convert Python 2 print statements to Python 3 - FIXED VERSION"""
-        print("DEBUG: *** USING FIXED VERSION OF _fix_print_statements ***")
         lines = content.split('\n')
         changes_made = False
     
@@ -426,17 +397,12 @@ class UnifiedSyntaxErrorHandler:
             if line.strip().startswith('#'):
                 continue
             
-            if 'print ' in line:
-                print(f"DEBUG: Line {i+1} contains 'print ': {line}")
-            
             # Check if the actual code part (not comment) already has print()
             code_part = line.split('#')[0]  # Get part before comment
             if 'print(' in code_part:
-                print("DEBUG: Code part already has print(), skipping")
                 continue
                 
             original_line = line
-            print(f"DEBUG: Processing line {i+1}: '{original_line}'")
             
             # Split line into code and comment parts
             if '#' in line:
@@ -462,16 +428,8 @@ class UnifiedSyntaxErrorHandler:
             if new_line != original_line:
                 lines[i] = new_line
                 changes_made = True
-                print(f"DEBUG: CHANGED line {i+1}")
-                print(f"DEBUG: FROM: '{original_line}'")
-                print(f"DEBUG: TO:   '{new_line}'")
-            else:
-                print(f"DEBUG: NO CHANGE made to line {i+1}")
     
-        result = '\n'.join(lines)
-        print(f"DEBUG: Total changes made: {changes_made}")
-    
-        return result
+        return '\n'.join(lines)
     
     def _fix_broken_keywords(self, content: str) -> str:
         """Fix keywords that have been broken with spaces"""
@@ -480,7 +438,7 @@ class UnifiedSyntaxErrorHandler:
             content = re.sub(pattern, replacement, content)
         
         if content != original_content:
-            print("Fixed broken keywords with spaces")
+            self.logger.info("Fixed broken keywords with spaces")
         
         return content
     
@@ -492,11 +450,11 @@ class UnifiedSyntaxErrorHandler:
         for i, line in enumerate(lines):
             if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
                 # Check if this should be indented
-                if any(keyword in line for keyword in ['return ', 'print(', 'pass', '=']):
+                if any(keyword in line for keyword in ['return ', 'pass', '=']):
                     # Look at previous line
                     if formatted_lines and formatted_lines[-1].strip().endswith(':'):
                         line = '    ' + line
-                        print(f"Added indentation to line {i+1}")
+                        self.logger.info(f"Added indentation to line {i+1}")
             
             formatted_lines.append(line)
         
