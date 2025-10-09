@@ -6,7 +6,9 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-30%2F30%20passing-brightgreen.svg)](#testing)
 
-**🔗 GitHub:** https://github.com/YourUsername/autofix-python-engine
+**📦 Status:** v1.0.0 Production Release  
+
+**🔗 GitHub:** https://github.com/Amitro123/autofix-python-engine
 
 ---
 
