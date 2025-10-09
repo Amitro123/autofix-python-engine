@@ -2,9 +2,17 @@
 
 > 🚀 Automatic Python error detection and fixing - production ready!
 
-[![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/autofix-python-engine.svg)](https://pypi.org/project/autofix-python-engine/)
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-30%2F30%20passing-brightgreen.svg)](#testing)
+[![Downloads](https://pepy.tech/badge/autofix-python-engine)](https://pepy.tech/project/autofix-python-engine)
+
+**📦 Install:** `pip install autofix-python-engine`  
+**🔗 PyPI:** [https://pypi.org/project/autofix-python-engine/](https://pypi.org/project/autofix-python-engine/)  
+**🔗 GitHub:** [https://github.com/Amitro123/autofix-python-engine](https://github.com/Amitro123/autofix-python-engine)
+
+---
+
 
 **📦 Status:** v1.0.0 Production Release  
 
@@ -144,11 +152,39 @@ See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for detailed limitations.
 
 ---
 
-##  Installation
+## 📦 Installation
 
-### Prerequisites
-- Python 3.8 or higher
-- pip package manager
+### Option 1: Install from PyPI (Recommended)
+
+\```
+# Install the latest version
+pip install autofix-python-engine
+
+# Verify installation
+autofix --version
+
+# You're ready!
+autofix your_script.py --auto-fix
+\```
+
+### Option 2: Install from Source
+
+\```
+# Clone the repository
+git clone https://github.com/Amitro123/autofix-python-engine.git
+cd autofix-python-engine
+
+# Install in development mode
+pip install -e .
+\```
+
+### Option 3: Install from GitHub
+
+\```
+# Direct install from GitHub
+pip install git+https://github.com/Amitro123/autofix-python-engine.git
+\```
+
 
 ### Quick Setup
 
