@@ -757,7 +757,7 @@ class AutoFixer:
 def main():
     """Main entry point with command-line argument parsing"""
     parser = create_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[1:])
 
     # Handle no script path - MOVE THIS TO THE TOP
     if not args.script_path:

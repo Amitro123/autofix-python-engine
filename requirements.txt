@@ -1,13 +1,6 @@
-﻿# AutoFix Python Engine - Dependencies
-
-# Testing
-pytest>=7.0.0
+﻿pytest>=7.0.0
 pytest-cov>=4.0.0
-
-# Optional: Firebase (for metrics)
 firebase-admin>=6.0.0
-
-# Optional: Code quality
 black>=23.0.0
 flake8>=6.0.0
 isort>=5.0.0

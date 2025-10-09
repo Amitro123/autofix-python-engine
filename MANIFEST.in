@@ -1,0 +1,11 @@
+﻿include README.md
+include LICENSE
+include requirements.txt
+include KNOWN_ISSUES.md
+include TESTING.md
+include CHANGELOG.md
+include ROADMAP.md
+recursive-include autofix *.py
+recursive-exclude tests *
+recursive-exclude demos *
+recursive-exclude examples *
