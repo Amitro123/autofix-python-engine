@@ -155,6 +155,7 @@ class PythonFixer:
         Returns:
             bool: True if script executed successfully, False otherwise
         """
+        script_path = os.path.abspath(script_path)
         if recursion_depth > self.max_retries:
             self.logger.error(
                 f"Maximum recursion depth ({self.max_retries}) reached. "

@@ -759,6 +759,9 @@ def main():
     parser = create_parser()
     args = parser.parse_args(sys.argv[1:])
 
+    if args.script_path:
+        args.script_path = os.path.abspath(args.script_path)
+
     # Handle no script path - MOVE THIS TO THE TOP
     if not args.script_path:
         parser.print_help()
