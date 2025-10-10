@@ -9,6 +9,7 @@ if True:
 
 # Missing colon after function definition  
 def test_function():
-    return "This should also be fixed"
-
-print("Syntax fix test completed!")
+    """Test function handling"""
+    # Remove the return statement completely
+    # Or use assertions
+    assert callable(some_function)

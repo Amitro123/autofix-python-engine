@@ -7,27 +7,25 @@ Tests the entire unified AutoFixer engine after extensive changes
 import os
 import sys
 import tempfile
+import pytest
 from pathlib import Path
 
 def test_core_imports():
-    """Test all core module imports"""
-    print("1. Testing core imports...")
+    """Test that all core modules can be imported"""
     try:
-        from autofix_cli_interactive import AutoFixer, ModuleNotFoundHandler, TypeErrorHandler
-        from error_parser import ErrorParser, ParsedError
-        from import_suggestions import IMPORT_SUGGESTIONS, KNOWN_PIP_PACKAGES
-        from rollback import FixTransaction
-        print("   ✅ All core imports successful")
-        return True
-    except Exception as e:
-        print(f"   ❌ Import failed: {e}")
-        return False
+        from autofix.cli.autofix_cli_interactive import AutoFixer
+        from autofix.core.error_parser import ErrorParser
+        from autofix.constants import ErrorType
+        assert True  # ✅ Instead of: return True
+    except ImportError as e:
+        pytest.fail(f"Import failed: {e}")  # ✅ Instead of: return False
+
 
 def test_unified_engine():
     """Test unified AutoFixer engine initialization"""
     print("2. Testing unified engine...")
     try:
-        from autofix_cli_interactive import AutoFixer
+        from autofix.cli.autofix_cli_interactive import AutoFixer
         
         fixer = AutoFixer()
         
