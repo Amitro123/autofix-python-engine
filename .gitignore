@@ -1,7 +1,7 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 .Python
 build/
@@ -21,129 +21,17 @@ wheels/
 *.egg
 MANIFEST
 
-# VS Code Extension
-autofix-vscode/node_modules/
-autofix-vscode/out/
-autofix-vscode/*.vsix
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Environment
-.env
-.venv
-env/
+# Virtual Environment
 venv/
-
-# Test files and cache
-*.pyc
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Temporary files
-temp_*
-*.tmp
-*.bak
-
-# API Keys and secrets
-config/secrets.json
-*.key
-api_keys.txt
-
-# Reports and outputs
-integration_test_report.json
-bandit_report.json
-stress_test_results.json
-firebase-key.json
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-# Duplicate project folders
-autofix-python-engine*/
-
-# Build artifacts
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-build/
-dist/
-*.egg-info/
-
-# Testing
-.pytest_cache/
-.coverage
-coverage.xml
-htmlcov/
-*.autofix.bak
-
-# Environment
-.env
-venv/
-.venv/
-ENV/
-
-# Secrets
-firebase-key.json
-*-key.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Reports
-*_report.txt
-*_report.json
-
-# Coverage reports
-.coverage
-coverage.xml
-htmlcov/
-
-# Build artifacts
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# Testing
-.pytest_cache/
-.tox/
-*.autofix.bak
-
-# Environment
-.env
-venv/
-.venv/
 ENV/
 env/
+.venv/
 
-# Secrets & Keys
-firebase-key.json
-*-key.json
-*.pem
-*.key
+# Environment Variables - CRITICAL!
+.env
+*.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -156,25 +44,24 @@ firebase-key.json
 .DS_Store
 Thumbs.db
 
-# Reports
-*_report.txt
-*_report.json
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Firebase
+firebase-credentials.json
+*-firebase-credentials.json
+*.json
+
+# Logs
 *.log
 
-# Build artifacts (generated files)
-*.egg-info/
-.coverage
-.pytest_cache/
-htmlcov/
-coverage.xml
-*.pyc
-__pycache__/
+# Temporary files
+*.tmp
+*.bak
+.pyproject.toml.bak
 
-# Build artifacts
-*.egg-info/
-.coverage
-.pytest_cache/
-htmlcov/
-coverage.xml
-*.pyc
-__pycache__/
+# Distribution
+*.whl
