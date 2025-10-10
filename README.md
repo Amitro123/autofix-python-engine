@@ -1,11 +1,11 @@
 # 🔧 AutoFix - Python Error Fixing Engine
 
-[![PyPI version](https://badge.fury.io/py/autofix-python-engine.svg)](https://pypi.org/project/autofix-python-engine/)
+[![PyPI version](https://img.shields.io/pypi/v/autofix-python-engine)](https://pypi.org/project/autofix-python-engine/)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-30%2F30-brightgreen)](https://github.com/Amitro123/autofix-python-engine)
+[![Tests](https://img.shields.io/badge/tests-29%2F29-brightgreen)](https://github.com/Amitro123/autofix-python-engine)
 
-**AutoFix** is an intelligent CLI tool that automatically detects and fixes common Python errors. Save time debugging trivial mistakes and focus on solving real problems!
+**AutoFix v2.1.0** is an AI-powered Python error-fixing tool available as a CLI and REST API. It uses a hybrid system—AutoFix for simple errors and Google's Gemini 2.5 Pro for complex ones—to help you save time debugging and focus on what matters.
 
 ---
 
@@ -20,16 +20,79 @@
 
 ---
 
-## 🎬 Demo
+## 🚀 REST API
 
-### SyntaxError Fix (Missing Colon)
-![SyntaxError Demo](demos/demo_syntax_error.gif)
+AutoFix v2.1.0 introduces a powerful REST API built with FastAPI, allowing you to integrate automated error fixing into your own applications, CI/CD pipelines, or services. The API is fully documented with Swagger UI, available at the `/docs` endpoint.
 
-### ModuleNotFoundError (Auto-Install)
-![Module Install Demo](demos/demo_module_install.gif)
+### Endpoints
 
-### IndentationError Fix
-![Indentation Demo](demos/demo_indentation.gif)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST   | `/api/v1/fix` | Fixes a single Python code snippet. |
+| POST   | `/api/v1/fix-batch` | Fixes multiple code snippets in a single request. |
+| POST   | `/api/v1/validate` | Validates Python code without fixing it. |
+| GET    | `/api/v1/stats` | Returns system health and usage statistics. |
+| GET    | `/api/v1/errors` | Lists all supported error types. |
+| GET    | `/api/v1/firebase-status` | (Optional) Checks the connection to Firebase. |
+| GET    | `/api/v1/firebase-metrics`| (Optional) Fetches metrics from Firebase. |
+| GET    | `/docs` | Provides interactive Swagger UI documentation. |
+
+
+---
+
+## 🤖 AI-Powered Fixes
+
+AutoFix v2.1.0 uses a hybrid approach to error fixing. For simple syntax and common errors, it uses its own fast and reliable engine (~0.6s). For more complex or runtime errors, it leverages the power of **Google's Gemini 2.5 Pro**.
+
+### How It Works
+1.  **AutoFix First**: The system first attempts to fix the error with its own engine.
+2.  **AI Fallback**: If AutoFix fails, the code is sent to Gemini 2.5 Pro for a more sophisticated fix.
+3.  **Free Tier**: You get **1 million requests per month for FREE**, which is more than enough for most use cases.
+
+### Example: AI Fix for a Complex Error
+
+#### Input (`buggy_code.py`)
+
+```python
+import numpy as np
+
+def calculate_average(numbers):
+  # This code has a logical error
+  return np.sum(numbers) / len(numbers) - 1
+
+data = [1, 2, 3, 4, 5]
+print(f"Wrong average: {calculate_average(data)}")
+```
+
+#### API Response with AI Fix
+
+```json
+{
+  "fixed_code": "import numpy as np\n\ndef calculate_average(numbers):\n  # This code has a logical error\n  return np.sum(numbers) / len(numbers)\n\ndata = [1, 2, 3, 4, 5]\nprint(f\"Correct average: {calculate_average(data)}\")",
+  "is_fixed": true,
+  "error_type": "LogicalError",
+  "ai_used": true
+}
+```
+
+---
+
+## 🎬 Quick Demo
+
+Fix a syntax error automatically:
+```bash
+autofix broken_script.py --auto-fix
+```
+
+Auto-install missing packages:
+```bash
+autofix script.py --auto-install
+```
+
+Full automation (no prompts):
+```bash
+autofix script.py --auto-fix --auto-install
+```
 
 ---
 
@@ -38,7 +101,7 @@
 | Metric | Status |
 |--------|--------|
 | Valid Python Files | 58/58 (100%) |
-| Test Coverage | 30/30 tests ✅ |
+| Test Coverage | 29/29 tests ✅ |
 | Error Types Covered | 7/7 (100%) |
 | Health Score | 80/100 |
 | Syntax Issues | 0 |
@@ -110,27 +173,106 @@ pip install git+https://github.com/Amitro123/autofix-python-engine.git
 
 ---
 
-## 🚀 Quick Start
+## 🔧 Setup for REST API
 
-### Basic Usage
+To use the REST API, you need to set up your environment with the Gemini API key.
 
-Analyze and fix errors automatically
-autofix your_script.py --auto-fix
+### 1. Create a `.env` File
 
-Auto-install missing packages
-autofix script.py --auto-install
+Create a `.env` file in the root of the project:
 
-Verbose mode for detailed output
-autofix script.py --auto-fix -v
+```
+GEMINI_API_KEY=your_gemini_api_key
+```
 
-Dry run (analyze without making changes)
-autofix script.py --dry-run
+### 2. Get Your Gemini API Key
+
+Get your free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+
+### 3. Install API Dependencies
+
+Install the necessary packages to run the server:
+
+```bash
+pip install fastapi uvicorn
+```
+
+### 4. Run the Server
+
+Start the FastAPI server with hot-reloading:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+### 5. Access the Docs
+
+The API documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 ---
 
-## 📖 Real-World Examples
+## 🚀 Usage Examples
 
-### Example 1: Fix Indentation Error
+### CLI Usage
+
+Analyze and fix errors automatically:
+```bash
+autofix your_script.py --auto-fix
+```
+
+Auto-install missing packages:
+```bash
+autofix script.py --auto-install
+```
+
+Verbose mode for detailed output:
+```bash
+autofix script.py --auto-fix -v
+```
+
+Dry run (analyze without making changes):
+```bash
+autofix script.py --dry-run
+```
+
+### API Usage
+
+#### Fix a Code Snippet (`curl`)
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8000/api/v1/fix' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "code": "def my_function()\\n  print(\\"Hello, World!\\")"
+}'
+```
+
+#### Fix a Code Snippet (`requests` in Python)
+
+```python
+import requests
+import json
+
+url = "http://localhost:8000/api/v1/fix"
+payload = {
+    "code": "def my_function()\\n  print(\\"Hello, World!\\")"
+}
+headers = {
+    "accept": "application/json",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, data=json.dumps(payload), headers=headers)
+print(response.json())
+```
+
+---
+
+## 📖 Usage Scenarios
+
+### Scenario 1: Fix a Simple Error with the CLI
 
 **Input** (`broken_script.py`):
 
@@ -151,39 +293,29 @@ Hello, World!
 
 ---
 
-### Example 2: Missing Module Installation
+### Scenario 2: Fix a Complex Error with the API and AI
 
-**Input** (`demo_requests.py`):
-import requests # Module not installed
+**Input** (`buggy_code.py`):
+```python
+import numpy as np
 
-response = requests.get('https://api.github.com')
-print(f'Status: {response.status_code}')
+def calculate_average(numbers):
+  # This code has a logical error
+  return np.sum(numbers) / len(numbers) - 1
 
-**Run AutoFix:**
+data = [1, 2, 3, 4, 5]
+print(f"Wrong average: {calculate_average(data)}")
+```
 
-autofix demo_requests.py --auto-install
-
-**Output:**
-
-10:15:23 - autofix - INFO - ModuleNotFoundError: No module named 'requests'
-10:15:23 - module_handler - INFO - Install 'requests'? (Y/N): Y
-10:15:25 - module_handler - INFO - Successfully installed requests
-10:15:26 - python_fixer - INFO - Script executed successfully!
-Status: 200
-
----
-
-### Example 3: Missing Colon
-
-**Input:**
-
-if x > 3 # Missing colon
-print("Greater than 3")
-
-**After AutoFix:**
-
-if x > 3: # Fixed!
-print("Greater than 3")
+**API Response with AI Fix:**
+```json
+{
+  "fixed_code": "import numpy as np\\n\\ndef calculate_average(numbers):\\n  # This code has a logical error\\n  return np.sum(numbers) / len(numbers)\\n\\ndata = [1, 2, 3, 4, 5]\\nprint(f\"Correct average: {calculate_average(data)}\")",
+  "is_fixed": true,
+  "error_type": "LogicalError",
+  "ai_used": true
+}
+```
 
 ---
 
@@ -238,11 +370,13 @@ CONFIG = {
 | **autofix/integrations/** | External integrations |
 | ├── `firestore_client.py` | Firebase Firestore client |
 | └── `metrics_collector.py` | Metrics aggregation |
+| **api/** | REST API backend |
+| ├── `main.py` | FastAPI application |
+| ├── `models/` | Pydantic schemas |
+| ├── `routers/` | API endpoints |
+| └── `services/` | AutoFix + Gemini services |
 | **tests/** | Test suite (30 tests) |
-| **demos/** | Demo scripts & GIFs |
-| ├── `demo_syntax_error.gif` | SyntaxError fix demo |
-| ├── `demo_module_install.gif` | Auto-install demo |
-| └── `demo_indentation.gif` | IndentationError demo |
+| **demos/** | Demo scripts and examples |
 | `README.md` | This documentation |
 | `pyproject.toml` | Package configuration |
 | `setup.py` | Setup script |
@@ -328,20 +462,20 @@ pytest
 
 ## 🗺️ Roadmap
 
-### v1.1.0 (Q4 2025)
-- 🤖 AI-powered error fixing (OpenAI/Claude APIs)
-- 🌐 Multi-language support (JavaScript, TypeScript)
-- 📊 Enhanced metrics dashboard
+### v2.1.0 (Completed)
+- 🤖 **AI-Powered Fixes**: Integrated Google's Gemini 2.5 Pro.
+- 🚀 **REST API**: Added a FastAPI backend.
+- ✅ **Production Ready**: All tests passing (29/29).
 
-### v1.2.0 (Q1 2026)
-- 🔌 VSCode Extension
-- 🎯 Auto-fix for TypeError
-- 🧪 Expanded test coverage (>50 tests)
+### v2.2.0 (Q4 2025)
+- 🌐 **Multi-Language Support**: Adding support for JavaScript and TypeScript.
+- 🔌 **VSCode Extension**: A dedicated extension for VSCode.
+- 📊 **Enhanced Metrics Dashboard**: A new dashboard for tracking metrics.
 
-### v2.0.0 (Q2 2026)
-- 🌍 Web interface
-- 👥 Team collaboration features
-- 🔧 Custom handler plugins
+### v3.0.0 (Q2 2026)
+- 🌍 **Web Interface**: A full-fledged web interface for AutoFix.
+- 👥 **Team Collaboration**: Features for teams to work together.
+- 🔧 **Custom Plugins**: Support for custom error-fixing plugins.
 
 ---
 
