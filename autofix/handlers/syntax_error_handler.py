@@ -8,21 +8,8 @@ from typing import Tuple, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-
+from ..constants import SyntaxErrorType
 from ..helpers.logging_utils import get_logger
-
-
-class SyntaxErrorType(Enum):
-    """Enumeration of different syntax error types"""
-    MISSING_COLON = "missing_colon"
-    PARENTHESES_MISMATCH = "parentheses_mismatch"
-    UNEXPECTED_EOF = "unexpected_eof"
-    INVALID_CHARACTER = "invalid_character"
-    INDENTATION_SYNTAX = "indentation_syntax"
-    PRINT_STATEMENT = "print_statement"
-    BROKEN_KEYWORDS = "broken_keywords"
-    VERSION_COMPATIBILITY = "version_compatibility"
-    GENERAL_SYNTAX = "general_syntax"
 
 
 @dataclass
@@ -122,9 +109,16 @@ class UnifiedSyntaxErrorHandler:
                     SyntaxErrorType.UNEXPECTED_EOF,
                     description="Add missing closing quotes, brackets, or parentheses"
                 )
+            ],
+            SyntaxErrorType.INDENTATION_ERROR: [
+                SyntaxFix(
+                    SyntaxErrorType.INDENTATION_ERROR,
+                    description="Fix indentation errors - add consistent spaces"
+                )
             ]
         }
     
+
     def can_handle(self, error_output: str) -> bool:
         """Check if this handler can process the error"""
         syntax_indicators = [
@@ -183,7 +177,8 @@ class UnifiedSyntaxErrorHandler:
                 'missing_colon': SyntaxErrorType.MISSING_COLON,
                 'print_statement': SyntaxErrorType.PRINT_STATEMENT,
                 'broken_keywords': SyntaxErrorType.BROKEN_KEYWORDS,
-                'indentation_syntax': SyntaxErrorType.INDENTATION_SYNTAX,
+                'indentation_error': SyntaxErrorType.INDENTATION_ERROR,
+                'indentation': SyntaxErrorType.INDENTATION_ERROR,
             }
             
             error_enum = error_map.get(error_lower, SyntaxErrorType.GENERAL_SYNTAX)
@@ -215,12 +210,12 @@ class UnifiedSyntaxErrorHandler:
                     elif error_key == "broken_keywords":
                         return SyntaxErrorType.BROKEN_KEYWORDS, "Fix broken keywords with spaces"
                     elif error_key == "indentation_error":
-                        return SyntaxErrorType.INDENTATION_SYNTAX, "Fix indentation - use consistent spaces or tabs"
+                        return SyntaxErrorType.INDENTATION_ERROR, "Fix indentation - use consistent spaces or tabs"
 
         
         # Fallback classifications
         if "indentation" in error_output_lower:
-            return SyntaxErrorType.INDENTATION_SYNTAX, "Fix indentation - use consistent spaces or tabs"
+            return SyntaxErrorType.INDENTATION_ERROR, "Fix indentation - use consistent spaces or tabs"
         else:
             return SyntaxErrorType.GENERAL_SYNTAX, "Fix syntax error - check Python syntax rules"
     
@@ -266,9 +261,8 @@ class UnifiedSyntaxErrorHandler:
             elif error_type == SyntaxErrorType.BROKEN_KEYWORDS:
                 content = self._fix_broken_keywords(content)
             
-            elif error_type == SyntaxErrorType.INDENTATION_SYNTAX:
-                content = self._fix_basic_indentation(content)
-            
+            elif error_type == SyntaxErrorType.INDENTATION_ERROR:
+                content = self._fix_indentation_error(content, details)
             else:
                 content = self._apply_general_fixes(content, details)
             
@@ -442,24 +436,44 @@ class UnifiedSyntaxErrorHandler:
         
         return content
     
-    def _fix_basic_indentation(self, content: str) -> str:
-        """Apply basic indentation fixes"""
+    def _fix_indentation_error(self, content: str, details: Dict) -> str:
+        """Fix indentation errors - comprehensive indentation fix"""
         lines = content.split('\n')
+        line_number = details.get('line_number')
+        
+        # If we have a specific line number, fix that line
+        if line_number and line_number <= len(lines):
+            line_idx = line_number - 1
+            current_line = lines[line_idx]
+            
+            # If line has no indentation and it's not empty, add 4 spaces
+            if current_line.strip() and not current_line.startswith((' ', '\t')):
+                # Check if previous line ends with colon (needs indent)
+                if line_idx > 0 and lines[line_idx - 1].rstrip().endswith(':'):
+                    lines[line_idx] = '    ' + current_line.lstrip()
+                    self.logger.info(f"Added indentation to line {line_number}")
+                    return '\n'.join(lines)
+        
+        # If no specific line or above didn't work, try general fixes
         formatted_lines = []
         
         for i, line in enumerate(lines):
-            if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                # Check if this should be indented
-                if any(keyword in line for keyword in ['return ', 'pass', '=']):
-                    # Look at previous line
-                    if formatted_lines and formatted_lines[-1].strip().endswith(':'):
-                        line = '    ' + line
-                        self.logger.info(f"Added indentation to line {i+1}")
+            current_line = line
             
-            formatted_lines.append(line)
+            # Check if line needs indentation
+            if line.strip() and not line.startswith((' ', '\t')):
+                # Keywords that should be indented after colon
+                needs_indent = any(keyword in line for keyword in ['return ', 'pass', 'print(', '='])
+                
+                # Look at previous line
+                if formatted_lines and formatted_lines[-1].strip().endswith(':') and needs_indent:
+                    current_line = '    ' + line.lstrip()
+                    self.logger.info(f"Added indentation to line {i+1}")
+            
+            formatted_lines.append(current_line)
         
         return '\n'.join(formatted_lines)
-    
+
     def _apply_general_fixes(self, content: str, details: Dict) -> str:
         """Apply general syntax fixes"""
         original_content = content

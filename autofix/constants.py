@@ -61,6 +61,19 @@ class ErrorType(Enum):
             
         }
         return string_map.get(self, "UnknownError")
+    
+# ========== SYNTAX ERROR TYPES ==========
+class SyntaxErrorType(Enum):
+    """Enumeration of different syntax error types"""
+    MISSING_COLON = "missing_colon"
+    PARENTHESES_MISMATCH = "parentheses_mismatch"
+    UNEXPECTED_EOF = "unexpected_eof"
+    INVALID_CHARACTER = "invalid_character"
+    PRINT_STATEMENT = "print_statement"
+    BROKEN_KEYWORDS = "broken_keywords"
+    VERSION_COMPATIBILITY = "version_compatibility"
+    GENERAL_SYNTAX = "general_syntax"
+    INDENTATION_ERROR = "indentation_error"
 
 
 # ========== SYNTAX ERROR SUBTYPES ==========
