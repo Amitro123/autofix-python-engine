@@ -65,3 +65,6 @@ firebase-credentials.json
 
 # Distribution
 *.whl
+# Test files
+test_*.py
+*_test.py

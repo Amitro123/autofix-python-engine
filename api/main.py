@@ -2,6 +2,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import fix
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 app = FastAPI(
     title="AutoFix API",

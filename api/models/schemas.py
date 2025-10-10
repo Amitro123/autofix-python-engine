@@ -25,5 +25,6 @@ class FixResponse(BaseModel):
     original_code: str
     fixed_code: Optional[str] = None
     error_type: Optional[str] = None
+    method: str = "autofix"  
     changes: List[Change] = []
     execution_time: float

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from api.models.schemas import FixRequest, FixResponse
 from api.services.autofix_service import AutoFixService
+# ← NO import for get_firestore_client here!
 import time
 from typing import List
 from pydantic import BaseModel
@@ -127,14 +128,49 @@ async def supported_errors():
 
 @router.get("/stats")
 async def get_stats():
-    """📊 Get API usage statistics"""
+    """📊 Get comprehensive API statistics"""
+    
+    # Check if Gemini is enabled
+    gemini_enabled = service.gemini.is_enabled()
+    
+    # Try to get Firebase metrics (optional)
+    firebase_enabled = False
+    total_fixes_from_db = 0
+    
+    try:
+        # ✅ Import INSIDE the function
+        from autofix.integrations.firestore_client import get_firestore_client
+        client = get_firestore_client()
+        
+        if client:
+            firebase_enabled = True
+            metrics_ref = client.collection('autofix_metrics')
+            total_fixes_from_db = len(list(metrics_ref.stream()))
+    except:
+        pass
+    
     return {
-        "total_fixes": 0,  # TODO: Add counter
+        "api_version": "2.0.0",
+        "autofix_version": "1.0.0",
+        "gemini_enabled": gemini_enabled,
+        "gemini_model": "gemini-2.5-pro" if gemini_enabled else None,
+        "gemini_free_tier": True if gemini_enabled else None,
+        "firebase_enabled": firebase_enabled,
+        "total_fixes": total_fixes_from_db,
         "success_rate": 0.95,
         "avg_execution_time": 0.5,
         "supported_errors": 7,
-        "uptime": "1 hour"  # TODO: Calculate real uptime
+        "endpoints": {
+            "fix": "/api/v1/fix",
+            "batch": "/api/v1/fix-batch",
+            "validate": "/api/v1/validate",
+            "errors": "/api/v1/errors",
+            "firebase": "/api/v1/firebase-status",
+            "metrics": "/api/v1/firebase-metrics"
+        }
     }
+
+
 
 
 @router.get("/firebase-status")
@@ -148,9 +184,7 @@ async def check_firebase():
     - Read/Write permissions
     """
     try:
-        # Import Firebase client
-        from autofix.integrations.firestore_client import get_firestore_client
-        
+        # Import Firebase client        
         # Try to get client
         client = get_firestore_client()
         
