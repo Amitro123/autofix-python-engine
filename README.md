@@ -213,40 +213,41 @@ CONFIG = {
 
 ## 📁 Project Structure
 
-autofix-python-engine/
-│
-├── 📦 autofix/ # Main package
-│ ├── 🎯 init.py
-│ ├── 🚀 main.py
-│ ├── 🔧 python_fixer.py # Core fixing logic
-│ ├── 📝 error_parser.py # Error analysis
-│ ├── 📋 constants.py # Global constants
-│ │
-│ ├── 💻 cli/ # Command-line interface
-│ │ ├── autofix_cli_interactive.py
-│ │ └── cli_parser.py
-│ │
-│ ├── 🛠️ handlers/ # Error-specific handlers
-│ │ ├── unified_syntax_handler.py
-│ │ ├── module_not_found_handler.py
-│ │ ├── type_error_handler.py
-│ │ └── ...
-│ │
-│ ├── 🔌 helpers/ # Utilities
-│ │ ├── logging_utils.py
-│ │ ├── file_utils.py
-│ │ └── metrics_utils.py
-│ │
-│ └── 🌐 integrations/ # External APIs
-│ ├── firestore_client.py
-│ └── metrics_collector.py
-│
-├── 🧪 tests/ # Test suite
-├── 🎬 demos/ # Demo scripts & GIFs
-├── 📖 README.md
-├── 📦 pyproject.toml
-└── 🔧 requirements.txt
-undefined
+| Path | Description |
+|------|-------------|
+| **autofix/** | Main package directory |
+| ├── `__init__.py` | Package initialization |
+| ├── `__main__.py` | Entry point for `-m` execution |
+| ├── `python_fixer.py` | Core error fixing logic |
+| ├── `error_parser.py` | Error parsing & analysis |
+| ├── `constants.py` | Global constants & enums |
+| **autofix/cli/** | Command-line interface |
+| ├── `autofix_cli_interactive.py` | Main CLI logic |
+| ├── `cli_parser.py` | Argument parsing |
+| **autofix/handlers/** | Error-specific handlers |
+| ├── `unified_syntax_handler.py` | SyntaxError & IndentationError fixes |
+| ├── `module_not_found_handler.py` | ModuleNotFoundError + auto-install |
+| ├── `type_error_handler.py` | TypeError suggestions |
+| ├── `index_error_handler.py` | IndexError suggestions |
+| ├── `name_error_handler.py` | NameError suggestions |
+| └── `attribute_error_handler.py` | AttributeError suggestions |
+| **autofix/helpers/** | Utility functions |
+| ├── `logging_utils.py` | Custom colored logging |
+| ├── `file_utils.py` | File operations & backups |
+| └── `metrics_utils.py` | Metrics collection |
+| **autofix/integrations/** | External integrations |
+| ├── `firestore_client.py` | Firebase Firestore client |
+| └── `metrics_collector.py` | Metrics aggregation |
+| **tests/** | Test suite (30 tests) |
+| **demos/** | Demo scripts & GIFs |
+| ├── `demo_syntax_error.gif` | SyntaxError fix demo |
+| ├── `demo_module_install.gif` | Auto-install demo |
+| └── `demo_indentation.gif` | IndentationError demo |
+| `README.md` | This documentation |
+| `pyproject.toml` | Package configuration |
+| `setup.py` | Setup script |
+| `requirements.txt` | Python dependencies |
+| `.gitignore` | Git ignore rules |
 ---
 
 ## 🧪 Testing
