@@ -214,53 +214,39 @@ CONFIG = {
 ## 📁 Project Structure
 
 autofix-python-engine/
-├── autofix/
-│ ├── init.py # Package initialization
-│ ├── main.py # Entry point (-m execution)
-│ ├── python_fixer.py # Core fixer logic
-│ ├── error_parser.py # Error parsing & analysis
-│ ├── constants.py # Global constants & enums
-│ │
-│ ├── cli/ # Command-line interface
-│ │ ├── init.py
-│ │ ├── autofix_cli_interactive.py # Main CLI logic
-│ │ └── cli_parser.py # Argument parsing
-│ │
-│ ├── handlers/ # Error-specific handlers
-│ │ ├── init.py
-│ │ ├── unified_syntax_handler.py # SyntaxError & IndentationError
-│ │ ├── module_not_found_handler.py # ModuleNotFoundError
-│ │ ├── type_error_handler.py # TypeError
-│ │ ├── index_error_handler.py # IndexError
-│ │ ├── name_error_handler.py # NameError
-│ │ └── attribute_error_handler.py # AttributeError
-│ │
-│ ├── helpers/ # Utility functions
-│ │ ├── init.py
-│ │ ├── logging_utils.py # Custom logging
-│ │ ├── file_utils.py # File operations
-│ │ └── metrics_utils.py # Metrics collection
-│ │
-│ └── integrations/ # External integrations
-│ ├── init.py
-│ ├── firestore_client.py # Firebase metrics
-│ └── metrics_collector.py # Metrics aggregation
 │
-├── tests/ # Test files
-│ ├── test_*.py # Unit tests
-│ └── integration_test_runner.py
+├── 📦 autofix/ # Main package
+│ ├── 🎯 init.py
+│ ├── 🚀 main.py
+│ ├── 🔧 python_fixer.py # Core fixing logic
+│ ├── 📝 error_parser.py # Error analysis
+│ ├── 📋 constants.py # Global constants
+│ │
+│ ├── 💻 cli/ # Command-line interface
+│ │ ├── autofix_cli_interactive.py
+│ │ └── cli_parser.py
+│ │
+│ ├── 🛠️ handlers/ # Error-specific handlers
+│ │ ├── unified_syntax_handler.py
+│ │ ├── module_not_found_handler.py
+│ │ ├── type_error_handler.py
+│ │ └── ...
+│ │
+│ ├── 🔌 helpers/ # Utilities
+│ │ ├── logging_utils.py
+│ │ ├── file_utils.py
+│ │ └── metrics_utils.py
+│ │
+│ └── 🌐 integrations/ # External APIs
+│ ├── firestore_client.py
+│ └── metrics_collector.py
 │
-├── demos/ # Demo scripts
-│ ├── demo_syntax_error.py
-│ ├── demo_indentation.py
-│ └── demo_module_install.py
-│
-├── README.md # This file
-├── requirements.txt # Python dependencies
-├── pyproject.toml # Package configuration
-├── setup.py # setuptools config
-└── .gitignore
-
+├── 🧪 tests/ # Test suite
+├── 🎬 demos/ # Demo scripts & GIFs
+├── 📖 README.md
+├── 📦 pyproject.toml
+└── 🔧 requirements.txt
+undefined
 ---
 
 ## 🧪 Testing
