@@ -18,7 +18,7 @@ Examples:
     # Required arguments
     parser.add_argument(
         "script_path",
-        nargs="?",  # מcli.py - מאפשר לא לתת script ולקבל help
+        nargs="?",
         help="Python script to run with auto-fixes"
     )
     
