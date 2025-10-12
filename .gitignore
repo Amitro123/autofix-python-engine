@@ -21,17 +21,20 @@ wheels/
 *.egg
 MANIFEST
 
+
 # Virtual Environment
 venv/
 ENV/
 env/
 .venv/
 
+
 # Environment Variables - CRITICAL!
 .env
 *.env
 .env.local
 .env.*.local
+
 
 # IDE
 .vscode/
@@ -40,31 +43,45 @@ env/
 *.swo
 *~
 
+
 # OS
 .DS_Store
 Thumbs.db
 
+
 # Testing
 .pytest_cache/
+*integration_test_report*
 .coverage
 htmlcov/
 .tox/
 
+
 # Firebase
 firebase-credentials.json
 *-firebase-credentials.json
-*.json
+# Note: Allow package.json, pyproject.toml, etc. - only block Firebase credentials
+firebase-key.json
+
 
 # Logs
 *.log
+
 
 # Temporary files
 *.tmp
 *.bak
 .pyproject.toml.bak
 
+
 # Distribution
 *.whl
-# Test files
-test_*.py
-*_test.py
+
+
+# ============================================
+# IMPORTANT: Test files should NOT be ignored!
+# Test files are source code and must be in Git.
+# ============================================
+# Removed these problematic rules:
+# test_*.py   ← This blocked ALL test files!
+# *_test.py   ← This too!
