@@ -61,6 +61,10 @@ test-results/
 *integration_test_report*          # integration test reports ← ADD THIS
 pytest_report.html
 
+# Gemini Cache (v2.2.1)
+.gemini_cache/
+*/.gemini_cache/
+
 
 
 # Firebase
