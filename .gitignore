@@ -49,12 +49,18 @@ env/
 Thumbs.db
 
 
-# Testing
+# Testing - artifacts and reports (NOT source code!)
 .pytest_cache/
-*integration_test_report*
 .coverage
 htmlcov/
 .tox/
+coverage.xml
+*.xml                              # pytest xml reports
+test-results/
+*test_report*.json                 # test reports
+*integration_test_report*          # integration test reports ← ADD THIS
+pytest_report.html
+
 
 
 # Firebase
