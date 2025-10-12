@@ -35,6 +35,9 @@ class GeminiCacheConfig:
     # Metrics
     ENABLE_METRICS = True
 
+    # Versioning
+    MODEL_NAME = "default-model"
+
 
 class GeminiCache:
     """
@@ -61,9 +64,30 @@ class GeminiCache:
         # Create dir only if enabled
         self.cache_dir.mkdir(exist_ok=True)
         logger.info(f"Cache initialized at {self.cache_dir}")
+        self._check_model_version()
 
 
     
+    def _check_model_version(self):
+        """Check for model version mismatch and clear cache if needed"""
+        version_file = self.cache_dir / ".model_version"
+
+        try:
+            if version_file.exists():
+                stored_version = version_file.read_text().strip()
+                if stored_version != self.config.MODEL_NAME:
+                    logger.warning(
+                        f"Model mismatch: cache has '{stored_version}',"
+                        f" current is '{self.config.MODEL_NAME}'. Clearing cache."
+                    )
+                    self.clear()
+                    version_file.write_text(self.config.MODEL_NAME)
+            else:
+                logger.info("No model version file, creating...")
+                version_file.write_text(self.config.MODEL_NAME)
+        except Exception as e:
+            logger.error(f"Version check error: {e}")
+
     def _get_cache_key(self, code: str, error_message: str) -> str:
         """
         Generate cache key from code + error

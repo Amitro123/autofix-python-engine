@@ -3,6 +3,7 @@ import os
 from typing import Optional
 from .gemini_cache import GeminiCache, GeminiCacheConfig
 from autofix.helpers.logging_utils import get_logger
+from autofix.integrations.metrics_collector import record_cache_stats
 
 logger = get_logger(__name__)
 
@@ -19,8 +20,6 @@ class GeminiService:
     
     def __init__(self):
         """Initialize Gemini with API key"""
-        self.cache = GeminiCache(GeminiCacheConfig())
-        
         if not GENAI_AVAILABLE:
             self.enabled = False
             return
@@ -29,10 +28,18 @@ class GeminiService:
         
         if api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-2.5-pro')
+            self.model = genai.GenerativeModel('gemini-pro')
             self.enabled = True
+
+            # Jules: Configure cache *after* model is available
+            # This allows passing the model name for versioning
+            cache_config = GeminiCacheConfig()
+            cache_config.MODEL_NAME = self.model.model_name
+            self.cache = GeminiCache(cache_config)
+
         else:
             self.enabled = False
+            self.cache = None
 
     def fix_with_ai(self, code: str, error: str) -> Optional[str]:
         """
@@ -55,6 +62,8 @@ class GeminiService:
             cached_result = self.cache.get(code, error)
             if cached_result:
                 logger.success("🎯 Cache HIT! Returning cached fix")
+                # Log cache stats to Firebase
+                record_cache_stats(self.cache.get_stats())
                 # Cache stores dict, extract fixed_code
                 return cached_result.get('fixed_code')
             logger.attempt("Cache MISS - calling Gemini API")

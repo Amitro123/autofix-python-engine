@@ -245,6 +245,16 @@ def record_session_end(script_path: str, total_fixes: int = 0, success: bool = F
     )
 
 
+def record_cache_stats(stats: Dict):
+    """Record Gemini cache statistics to Firestore"""
+    return save_metrics(
+        script_path="gemini_cache",
+        status="cache_stats",
+        error_details=stats,
+        message=f"Cache stats: {stats.get('hit_rate', 'N/A')}"
+    )
+
+
 class ReportFormatter:
     """Handles formatting and display of AutoFix reports and analysis results"""
     
