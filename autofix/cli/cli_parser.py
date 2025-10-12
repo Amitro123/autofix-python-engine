@@ -87,7 +87,7 @@ Examples:
     parser.add_argument(
         "--version",
         action="version",
-        version="AutoFix Python Engine v2.1.0"
+        version="AutoFix Python Engine v2.2.0"
     )
     
     return parser

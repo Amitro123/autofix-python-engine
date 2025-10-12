@@ -11,7 +11,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
 # Handle both relative and absolute imports
 try:
     from ..helpers.rollback import FixTransaction
@@ -485,7 +484,7 @@ class ErrorParser:
         Usage:
             with parser.create_safe_fix_context("script.py") as ctx:
                 # Apply fixes here
-                ctx.apply_fix_with_rollback(some_fix_function, arg1, arg2)  # ← שנה כאן
+                ctx.apply_fix_with_rollback(some_fix_function, arg1, arg2)
 
         """
         return SafeFixContext(script_path, self.logger)

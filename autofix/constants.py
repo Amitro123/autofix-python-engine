@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from re import S
 from typing import Final, List, Dict, Optional
 import logging
 
@@ -18,7 +19,8 @@ class ErrorType(Enum):
     GENERAL_SYNTAX = auto()
     KEY_ERROR = auto()
     ZERO_DIVISION_ERROR = auto()
-    
+    FILE_NOT_FOUND = auto()
+    VALUE_ERROR = auto() 
     
     @classmethod
     def from_string(cls, error_string: str):
@@ -38,7 +40,10 @@ class ErrorType(Enum):
             "GeneralSyntax": cls.GENERAL_SYNTAX,
             "missing_colon": cls.GENERAL_SYNTAX,
             "KeyError": cls.KEY_ERROR,
-            "ZeroDivisionError": cls.ZERO_DIVISION_ERROR
+            "ZeroDivisionError": cls.ZERO_DIVISION_ERROR,
+            "FileNotFoundError": cls.FILE_NOT_FOUND,
+            "FileNotFound": cls.FILE_NOT_FOUND,
+            "ValueError": cls.VALUE_ERROR
         }
         return error_map.get(error_string)
     
@@ -57,7 +62,9 @@ class ErrorType(Enum):
             self.UNKNOWN_ERROR: "UnknownError",
             self.GENERAL_SYNTAX: "general_syntax",
             self.KEY_ERROR: "KeyError",
-            self.ZERO_DIVISION_ERROR: "ZeroDivisionError"
+            self.ZERO_DIVISION_ERROR: "ZeroDivisionError",
+            self.FILE_NOT_FOUND: "FileNotFoundError",
+            self.VALUE_ERROR: "ValueError"      
             
         }
         return string_map.get(self, "UnknownError")

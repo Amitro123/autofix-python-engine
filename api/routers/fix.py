@@ -120,9 +120,18 @@ async def supported_errors():
             "TypeError",
             "IndexError",
             "NameError",
-            "AttributeError"
+            "AttributeError",
+            "ZeroDivisionError",
+            "KeyError",
+            "FileNotFoundError",
+            "ValueError",
+            "importError"
         ],
-        "total": 7
+        "total_count": 12,
+        "new_in_v2_2_0": [
+            "FileNotFoundError",
+            "ValueError"
+        ]
     }
 
 

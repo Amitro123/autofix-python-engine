@@ -31,6 +31,8 @@ from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 from autofix.handlers.key_error_handler import KeyErrorHandler
 from autofix.helpers.spinner import spinner
 from autofix.handlers.zero_division_handler import ZeroDivisionHandler
+from autofix.handlers.file_not_found_handler import FileNotFoundHandler
+from autofix.handlers.value_error_handler import ValueErrorHandler
 from autofix.handlers.index_error_handler import IndexErrorHandler
 from autofix.handlers.import_error_handler import ImportErrorHandler
 from .handlers.module_not_found_handler import (
@@ -234,6 +236,10 @@ class PythonFixer:
             return self._fix_syntax_error(error)
         elif error_type == ErrorType.TYPE_ERROR:
             return self._fix_type_error(error)
+        elif error_type == ErrorType.FILE_NOT_FOUND:
+            return self._fix_file_not_found_error(error)
+        elif error_type == ErrorType.VALUE_ERROR:
+            return self._fix_value_error(error)
         elif error_type == ErrorType.GENERAL_SYNTAX:
             return self._fix_syntax_error(error)
         else:
@@ -354,7 +360,25 @@ class PythonFixer:
         details['line_number'] = error.line_number
         
         return handler.apply_fix("ZeroDivisionError", error.file_path, details)
-   
+    
+    def _fix_file_not_found_error(self, error: ParsedError) -> bool:
+        """Handle FileNotFoundError - delegate to FileNotFoundHandler"""
+        handler = FileNotFoundHandler()
+        _, _, details = handler.analyze_error(error.error_message, error.file_path)
+        details['error_message'] = error.error_message
+        details['line_number'] = error.line_number
+        
+        return handler.apply_fix("FileNotFoundError", error.file_path, details)
+
+    def _fix_value_error(self, error: ParsedError) -> bool:
+        """Handle ValueError - delegate to ValueErrorHandler"""
+        handler = ValueErrorHandler()
+        _, _, details = handler.analyze_error(error.error_message, error.file_path)
+        details['error_message'] = error.error_message
+        details['line_number'] = error.line_number
+        
+        return handler.apply_fix("ValueError", error.file_path, details)
+
     def _read_file_content(self, file_path: str) -> str:
         """Read file content with UTF-8 encoding"""
         return Path(file_path).read_text(encoding="utf-8")

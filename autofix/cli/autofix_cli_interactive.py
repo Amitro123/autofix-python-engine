@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from ..helpers.logging_utils import get_logger, quick_setup
 from ..helpers.spinner import spinner
 from ..core.error_parser import ErrorParser, ParsedError
+from autofix.handlers.file_not_found_handler import FileNotFoundHandler
+from autofix.handlers.value_error_handler import ValueErrorHandler
 from ..python_fixer import PythonFixer
 try:
     from autofix.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
@@ -35,6 +37,9 @@ INDEX_ERROR = ErrorType.INDEX_ERROR
 TYPE_ERROR = ErrorType.TYPE_ERROR
 INDENTATION_ERROR = ErrorType.INDENTATION_ERROR
 TAB_ERROR = ErrorType.TAB_ERROR
+FILE_NOT_FOUND = ErrorType.FILE_NOT_FOUND
+VALUE_ERROR = ErrorType.VALUE_ERROR
+
 
 
 SHOW_METRICS_ERRORS = os.getenv('AUTOFIX_DEBUG_METRICS', 'false').lower() == 'true' #debug metrics WHERE TO SET IT?
@@ -499,7 +504,9 @@ class AutoFixer:
             INDENTATION_ERROR: IndentationErrorHandler(),
             INDEX_ERROR: IndexErrorHandler(),
             SYNTAX_ERROR: SyntaxErrorHandler(),
-            TAB_ERROR: TabErrorHandler()
+            FILE_NOT_FOUND: FileNotFoundHandler(),
+            TAB_ERROR: TabErrorHandler(),
+            VALUE_ERROR: ValueErrorHandler()
         }
         self.error_parser = ErrorParser()
     
