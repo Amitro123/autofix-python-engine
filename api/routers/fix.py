@@ -1,16 +1,37 @@
-"""Code fixing endpoints"""
 from fastapi import APIRouter, HTTPException
-from api.models.schemas import FixRequest, FixResponse
+from pydantic import BaseModel
 from api.services.autofix_service import AutoFixService
-# ← NO import for get_firestore_client here!
+from api.services.gemini_service import GeminiService
+from autofix.helpers.logging_utils import get_logger
 import time
 from typing import List
-from pydantic import BaseModel
 
 
 
 router = APIRouter()
-service = AutoFixService()
+logger = get_logger(__name__)
+
+
+# Initialize services
+autofix_service = AutoFixService()
+gemini_service = GeminiService()
+
+
+class FixRequest(BaseModel):
+    code: str
+    error: str = "Unknown"
+    auto_install: bool = False
+
+
+class FixResponse(BaseModel):
+    success: bool
+    original_code: str
+    fixed_code: str = None
+    error_type: str
+    method: str
+    cache_hit: bool = False
+    changes: list = []
+    execution_time: float
 
 
 class ValidateRequest(BaseModel):
@@ -46,31 +67,56 @@ async def validate_code(request: ValidateRequest):
             os.remove(temp_file)
 
 
-@router.post("/fix", response_model=FixResponse)
+@router.post("/fix")
 async def fix_code(request: FixRequest):
     """
-    🔧 Fix Python code automatically
-    
-    **Example:**
-    ```
-    {
-      "code": "if True\\n    print('hello')",
-      "auto_install": false
-    }
-    ```
+    🔧 Fix Python code using Hybrid AI approach
     """
-    start = time.time()
+    start_time = time.time()
     
     try:
-        result = service.fix_code(
+        logger.info(f"📥 Received fix request for: {getattr(request, 'error', 'unknown')}")
+        
+        # Call service
+        result = autofix_service.fix_code(
             code=request.code,
-            auto_install=request.auto_install
+            auto_install=getattr(request, 'auto_install', False)
         )
-        result["execution_time"] = round(time.time() - start, 3)
+        
+        # Log result
+        execution_time = time.time() - start_time
+        
+        if result.get('success'):
+            method = result.get('method', 'unknown')
+            cache_hit = result.get('cache_hit', False)
+            
+            if method == 'autofix':
+                logger.success(f"✅ AutoFix succeeded in {execution_time:.3f}s")
+            elif cache_hit:
+                logger.success(f"⚡ Cache HIT! Retrieved in {execution_time:.3f}s")
+            elif method == 'gemini':
+                logger.success(f"🤖 Gemini fixed it in {execution_time:.3f}s")
+        else:
+            logger.error(f"❌ Fix failed in {execution_time:.3f}s")
+        
         return result
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        execution_time = time.time() - start_time
+        logger.error(f"💥 Error in fix_code endpoint: {str(e)}")
+        
+        return {
+            "success": False,
+            "original_code": request.code,
+            "fixed_code": None,
+            "error_type": "InternalError",
+            "method": "error",
+            "cache_hit": False,
+            "changes": [],
+            "execution_time": execution_time,
+            "error_message": str(e)
+        }
+
 
 @router.post("/fix-batch", response_model=List[FixResponse])
 async def fix_batch(requests: List[FixRequest]):

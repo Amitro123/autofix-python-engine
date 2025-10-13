@@ -28,7 +28,7 @@ class GeminiService:
         
         if api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-2.5-pro')
             self.enabled = True
 
             # Jules: Configure cache *after* model is available
@@ -90,9 +90,9 @@ class GeminiService:
             response = self.model.generate_content(
                 prompt,
                 generation_config={
-                    'temperature': 0.1,  # Low for consistency
-                    'top_p': 0.95,
-                    'top_k': 40,
+                    'temperature': 0.0,
+                    'top_p': 1.0,
+                    'top_k': 1,
                     'max_output_tokens': 8192,
                 }
             )

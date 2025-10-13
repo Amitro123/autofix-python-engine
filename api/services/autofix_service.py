@@ -3,6 +3,7 @@ import tempfile
 import os
 import sys
 import subprocess
+import time
 from typing import Dict, Any
 from api.services.gemini_service import GeminiService
 
@@ -16,7 +17,7 @@ class AutoFixService:
     
     def fix_code(self, code: str, auto_install: bool = False) -> Dict[str, Any]:
         """
-        Fix Python code - try AutoFix first, then Gemini
+        Fix Python code - try AutoFix first, then Gemini with cache
         
         Args:
             code: Python code string
@@ -25,6 +26,7 @@ class AutoFixService:
         Returns:
             Dictionary with fix results
         """
+        start_time = time.time()
         # Create temp file
         with tempfile.NamedTemporaryFile(
             mode='w',
@@ -70,25 +72,50 @@ class AutoFixService:
             # ✅ NEW: Check if code actually changed OR if error detected
             code_unchanged = (original_code == fixed_code)
             
-            # If AutoFix failed OR code unchanged with error, try Gemini
             if (not success or (code_unchanged and error_type != "Unknown")) and self.gemini.is_enabled():
-                print(f"🤖 AutoFix didn't fix {error_type}, trying Gemini...")
+                print(f"🤖 AutoFix didn't fix {error_type}, trying Gemini with cache...")
                 
                 # Get error message
-                error_msg = result.stderr or result.stdout or f"{error_type} detected"
+                error_msg = error_type  # Just use error type!
+
+                # ===== Check cache first! =====
+                if self.gemini.cache:
+                    cached_result = self.gemini.cache.get(code, error_msg)
+                    
+                    if cached_result:
+                        execution_time = time.time() - start_time
+                        print(f"⚡ Cache HIT! Returning in {execution_time:.3f}s")
+                        return {
+                            'success': True,
+                            'original_code': original_code,
+                            'fixed_code': cached_result.get('fixed_code'),
+                            'error_type': error_type,
+                            'method': 'gemini', 
+                            'cache_hit': True,
+                            'execution_time': execution_time,
+                            'changes': [{
+                                'line': 1,
+                                'type': error_type,
+                                'description': f"Fixed by Gemini AI (cached)"
+                            }]
+                        }
+
                 
-                # Try Gemini
+                # Cache miss - call Gemini API
+                print("Cache miss - calling Gemini API...")
                 gemini_fix = self.gemini.fix_with_ai(code, error_msg)
                 
                 if gemini_fix and gemini_fix != code:
+                    # Clean up code blocks
                     gemini_fix = gemini_fix.replace('``````', '').strip()
                     print("✅ Gemini fixed it!")
-                    return {
+                    return {  # ← Return immediately!
                         "success": True,
                         "original_code": original_code,
                         "fixed_code": gemini_fix,
                         "error_type": error_type,
                         "method": "gemini",
+                        "cache_hit": False,
                         "changes": [{
                             "line": 1,
                             "type": error_type,
@@ -97,21 +124,39 @@ class AutoFixService:
                     }
                 else:
                     print("❌ Gemini couldn't fix it either")
-            
-            # Return AutoFix result
+                    # Fall through to return AutoFix result
+
             return {
                 "success": success,
                 "original_code": original_code,
                 "fixed_code": fixed_code if success else None,
                 "error_type": error_type,
                 "method": "autofix",
+                "cache_hit": False,
                 "changes": changes
             }
             
         except subprocess.TimeoutExpired:
-            # Timeout - try Gemini
+            # Timeout - try Gemini with cache
             if self.gemini.is_enabled():
-                print("⏱️ Timeout, trying Gemini...")
+                print("⏱️ Timeout, trying Gemini with cache...")
+                
+                # Check cache first
+                if self.gemini.cache:
+                    cached_result = self.gemini.cache.get(code, "Execution timeout")
+                    if cached_result:
+                        print("⚡ Cache HIT for timeout case")
+                        return {
+                            "success": True,
+                            "original_code": code,
+                            "fixed_code": cached_result.get('fixed_code'),
+                            "error_type": "Timeout",
+                            "method": "gemini",
+                            "cache_hit": True,
+                            "changes": [{"line": 1, "type": "Timeout", "description": "Fixed by Gemini (cached)"}]
+                        }
+                
+                # Cache miss - call Gemini
                 gemini_fix = self.gemini.fix_with_ai(code, "Execution timeout")
                 if gemini_fix:
                     return {
@@ -120,6 +165,7 @@ class AutoFixService:
                         "fixed_code": gemini_fix,
                         "error_type": "Timeout",
                         "method": "gemini",
+                        "cache_hit": False,
                         "changes": [{"line": 1, "type": "Timeout", "description": "Fixed by Gemini"}]
                     }
             
@@ -129,6 +175,7 @@ class AutoFixService:
                 "fixed_code": None,
                 "error_type": "Timeout",
                 "method": "failed",
+                "cache_hit": False,
                 "changes": []
             }
             
@@ -140,6 +187,7 @@ class AutoFixService:
                 "fixed_code": None,
                 "error_type": str(type(e).__name__),
                 "method": "failed",
+                "cache_hit": False,
                 "changes": []
             }
         finally:
@@ -148,7 +196,6 @@ class AutoFixService:
                     os.remove(temp_file)
                 except:
                     pass
-
 
     def _parse_error_type(self, stdout: str, stderr: str) -> str:
         """Parse error type from AutoFix output"""

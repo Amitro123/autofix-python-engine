@@ -152,7 +152,7 @@ def setup_logging(
     logger.handlers.clear()
     
     # Console handler
-    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(effective_level)
     console_handler.setFormatter(AutoFixFormatter(use_colors=use_colors))
     logger.addHandler(console_handler)
