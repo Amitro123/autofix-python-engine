@@ -1,9 +1,9 @@
-from autofix.core.base_handler import BaseHandler
+from autofix.core.base_handler import ErrorHandler
 from typing import Tuple, Dict
 import re
 
 
-class ValueErrorHandler(BaseHandler):
+class ValueErrorHandler(ErrorHandler):
     """Handler for ValueError - type conversion errors"""
     
     def can_handle(self, error_output: str) -> bool:

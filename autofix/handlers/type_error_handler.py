@@ -1,4 +1,4 @@
-from ..core.base_handler import BaseHandler
+from ..core.base_handler import ErrorHandler
 from ..constants import ErrorType
 from typing import Tuple, Dict, List, Optional
 import re
@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class TypeErrorHandler(BaseHandler):
+class TypeErrorHandler(ErrorHandler):
     """Handler for TypeError - provides suggestions only (PARTIAL)"""
     
     def __init__(self):
@@ -41,6 +41,13 @@ class TypeErrorHandler(BaseHandler):
         # String concatenation with numbers
         if "can only concatenate str" in error_output or "unsupported operand" in error_output:
             return "string_concatenation", "Convert number to string: str(number) or use f-string"
+        
+        # String to number conversion errors
+        if "invalid literal for int()" in error_output:
+            return "string_concatenation", "Cannot convert string to integer - check input format or use try/except"
+        
+        if "could not convert string to float" in error_output:
+            return "string_concatenation", "Cannot convert string to float - check input format or use try/except"
         
         # Function argument issues
         if "takes" in error_output and "positional argument" in error_output:

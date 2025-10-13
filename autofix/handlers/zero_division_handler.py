@@ -1,8 +1,8 @@
-from autofix.core.base_handler import BaseHandler
+from autofix.core.base_handler import ErrorHandler
 from typing import Tuple, Dict, List
 import re
 
-class ZeroDivisionHandler(BaseHandler):
+class ZeroDivisionHandler(ErrorHandler):
     """Handler for ZeroDivisionError - provides suggestions only (PARTIAL)"""
     
     def can_handle(self, error_output: str) -> bool:

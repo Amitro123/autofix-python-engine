@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-35%2F35-brightgreen)](https://github.com/Amitro123/autofix-python-engine)
 
-**AutoFix v2.2.0** is an AI-powered Python error-fixing tool supporting 12 error types, available as both a CLI and REST API. It uses a hybrid system—AutoFix for simple errors and Google's Gemini 2.5 Pro for complex ones—to help you save time debugging and focus on what matters.
+**AutoFix v2.2.3** is an AI-powered Python error-fixing tool with smart caching, supporting 12 error types, available as both a CLI and REST API. It uses a hybrid system—AutoFix for simple errors and Google's Gemini 2.5 Pro for complex ones—to help you save time debugging and focus on what matters.
 
 ---
 
@@ -22,7 +22,7 @@
 
 ## 🚀 REST API
 
-AutoFix v2.2.0 introduces a powerful REST API built with FastAPI, allowing you to integrate automated error fixing into your own applications, CI/CD pipelines, or services. The API is fully documented with Swagger UI, available at the `/docs` endpoint.
+AutoFix v2.2.3 introduces a powerful REST API built with FastAPI, allowing you to integrate automated error fixing into your own applications, CI/CD pipelines, or services. The API is fully documented with Swagger UI, available at the `/docs` endpoint.
 
 ### Endpoints
 
@@ -41,7 +41,7 @@ AutoFix v2.2.0 introduces a powerful REST API built with FastAPI, allowing you t
 
 ## 🤖 AI-Powered Fixes
 
-AutoFix v2.2.0 uses a hybrid approach to error fixing. For simple syntax and common errors, it uses its own fast and reliable engine (~0.6s). For more complex or runtime errors, it leverages the power of **Google's Gemini 2.5 Pro**.
+AutoFix v2.2.3 uses a hybrid approach to error fixing. For simple syntax and common errors, it uses its own fast and reliable engine (~0.6s). For more complex or runtime errors, it leverages the power of **Google's Gemini 2.5 Pro**.
 
 ### How It Works
 1.  **AutoFix First**: The system first attempts to fix the error with its own engine.
@@ -135,7 +135,7 @@ autofix script.py --auto-fix --auto-install
 
 ## 🐍 Supported Error Types
 
-**AutoFix v2.2.0 now supports 12 error types!** 🎉
+**AutoFix v2.2.3 now supports 12 error types!** 🎉
 
 | Error Type | Auto-Fix | Manual | Description |
 |------------|:--------:|:------:|-------------|
@@ -524,7 +524,7 @@ pytest
 
 ## 🗺️ Roadmap
 
-### v2.2.0 (Completed - October 2025)
+### v2.2.3 (Completed - October 2025)
 - ✨ **FileNotFoundError Handler** - File existence checks
 - ✨ **ValueError Handler** - Type conversion error handling
 - 📊 **Enhanced Examples** - Concrete fix examples for all handlers

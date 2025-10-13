@@ -52,7 +52,7 @@ def test_autofixer_initialization():
         pytest.fail(f"AutoFixer initialization failed: {e}")
 
 
-def test_error_detection():
+def check_error_detection():
     """Test error detection and handler selection."""
     print("\n🔍 Testing error detection...")
     
@@ -82,7 +82,7 @@ def test_error_detection():
         print(f"❌ Error detection test failed: {e}")
         return False
 
-def test_cli_functionality():
+def check_cli_functionality():
     """Test CLI class functionality."""
     print("\n🔍 Testing CLI functionality...")
     
@@ -109,19 +109,16 @@ def test_import_suggestions():
     print("\n🔍 Testing import suggestions...")
     
     try:
-        from import_suggestions import IMPORT_SUGGESTIONS, KNOWN_PIP_PACKAGES
+        from autofix.import_suggestions import IMPORT_SUGGESTIONS, KNOWN_PIP_PACKAGES
         
-        if len(IMPORT_SUGGESTIONS) > 0 and len(KNOWN_PIP_PACKAGES) > 0:
-            print(f"✅ Import suggestions loaded: {len(IMPORT_SUGGESTIONS)} entries")
-            print(f"✅ Known pip packages: {len(KNOWN_PIP_PACKAGES)} entries")
-            return True
-        else:
-            print("❌ Import suggestions databases are empty")
-            return False
+        assert len(IMPORT_SUGGESTIONS) > 0, "Import suggestions database is empty"
+        assert len(KNOWN_PIP_PACKAGES) > 0, "Known pip packages database is empty"
+        
+        print(f"✅ Import suggestions loaded: {len(IMPORT_SUGGESTIONS)} entries")
+        print(f"✅ Known pip packages: {len(KNOWN_PIP_PACKAGES)} entries")
             
     except Exception as e:
-        print(f"❌ Import suggestions test failed: {e}")
-        return False
+        pytest.fail(f"Import suggestions test failed: {e}")
 
 def main():
     """Run all validation tests."""
@@ -132,8 +129,8 @@ def main():
     tests = [
         test_core_imports,
         test_autofixer_initialization,
-        test_error_detection,
-        test_cli_functionality,
+        check_error_detection,
+        check_cli_functionality,
         test_import_suggestions
     ]
     
