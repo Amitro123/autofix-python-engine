@@ -1,174 +1,159 @@
-"""Google Gemini AI Service for AutoFix"""
+"""
+Gemini Service - WORKING with google-generativeai
+Handles the interaction with the Gemini API for the AutoFixer application.
+Manages the chat session, system instructions, and tool calling lifecycle.
+"""
+
+import google.generativeai as genai
+from typing import List, Dict, Any, Optional
+import re
 import os
-from typing import Optional
-from .gemini_cache import GeminiCache, GeminiCacheConfig
+import json
 from autofix.helpers.logging_utils import get_logger
-from autofix.integrations.metrics_collector import record_cache_stats
+
+from .tools_service import ToolsService
 
 logger = get_logger(__name__)
 
-
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except ImportError:
-    GENAI_AVAILABLE = False
+# Using a specific model name as requested
+GEMINI_MODEL = "gemini-2.0-flash-exp"
 
 
 class GeminiService:
-    """Service to integrate Gemini AI for code fixing"""
+    """Gemini service - Working version, using a manual tool calling loop."""
     
-    def __init__(self):
-        """Initialize Gemini with API key"""
-        if not GENAI_AVAILABLE:
-            self.enabled = False
-            return
-            
-        api_key = os.getenv("GEMINI_API_KEY")
-        
+    SYSTEM_INSTRUCTION = (
+        "You are AutoFixer. Fix broken Python code:\n"
+        "1. Check syntax with validate_syntax\n"
+        "2. Test with execute_code\n"
+        "3. Search similar fixes with search_memory if needed\n"
+        "4. Provide fixed code with explanation"
+    )
+
+    def __init__(self, tools_service: ToolsService, api_key: Optional[str] = None):
+        """Initialize"""
+        # Configure the client globally or using the provided key
         if api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-2.5-pro')
-            self.enabled = True
-
-            # Jules: Configure cache *after* model is available
-            # This allows passing the model name for versioning
-            cache_config = GeminiCacheConfig()
-            cache_config.MODEL_NAME = self.model.model_name
-            self.cache = GeminiCache(cache_config)
-
         else:
-            self.enabled = False
-            self.cache = None
+            api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY not found or not provided.")
+            genai.configure(api_key=api_key)
+        
+        self.tools_service = tools_service
+        # Get tool declarations from the ToolsService
+        tools = [tools_service.get_tool_declarations()]
+        
+        # Initialize GenerativeModel
+        self.model = genai.GenerativeModel(
+            model_name=GEMINI_MODEL,
+            tools=tools,
+            system_instruction=self.SYSTEM_INSTRUCTION
+        )
+        
+        # Start a new chat session
+        self.chat = self.model.start_chat()
+        logger.info(f"✅ Gemini ready with model: {GEMINI_MODEL}")
 
-    def fix_with_ai(self, code: str, error: str) -> Optional[str]:
-        """
-        Use Gemini to fix Python code with caching and token counting
+    def process_user_code(self, user_code: str, max_iterations: int = 5) -> Dict[str, Any]:
+        """Fix code using an iterative tool-calling loop."""
+        logger.info("Processing user code with Gemini...")
         
-        v2.2.1 improvements based on Jules' recommendations:
-        - Check cache first (faster, cheaper)
-        - Use accurate token counting (model.count_tokens)
-        - Cache successful results
-        - Better error handling
-        """
-        if not self.enabled:
-            logger.info("Gemini disabled, skipping AI fix")
-            return None
+        # 1. Send initial message
+        response = self.chat.send_message(user_code)
+        tools_used = []
+        iteration = 0
         
-        logger.attempt("Starting AI fix process")
-        
-        # Step 1: Check cache first (Jules: huge performance win!)
-        if self.cache:
-            cached_result = self.cache.get(code, error)
-            if cached_result:
-                logger.success("🎯 Cache HIT! Returning cached fix")
-                # Log cache stats to Firebase
-                record_cache_stats(self.cache.get_stats())
-                # Cache stores dict, extract fixed_code
-                return cached_result.get('fixed_code')
-            logger.attempt("Cache MISS - calling Gemini API")
-        
-        # Step 2: Accurate token counting (Jules: use model.count_tokens!)
-        try:
-            token_count = self._count_tokens(code, error)
-            logger.info(f"Token count: {token_count}")
+        while iteration < max_iterations:
+            # 2. Check for function calls
+            function_calls = []
+            if response.candidates and len(response.candidates) > 0:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        function_calls.append(part.function_call)
             
-            if token_count > 30000:  # Gemini 2.0 Flash limit
-                logger.warning(f"Input too large: {token_count} tokens (max: 30000)")
-                return None
-        except Exception as e:
-            logger.warning(f"Token counting failed: {e}, proceeding anyway")
-        
-        # Step 3: Call Gemini API with improved prompt
-        try:
-            prompt = "You are an expert Python debugger.\n\n"
-            prompt += f"Error:\n{error}\n\n"
-            prompt += f"Code:\n```python\n{code}\n```\n\n"
-            prompt += "Provide ONLY the fixed code, no explanations."
+            if not function_calls:
+                # No more tools to call, break the loop and process final text
+                break
             
-            logger.attempt("Calling Gemini API...")
-            response = self.model.generate_content(
-                prompt,
-                generation_config={
-                    'temperature': 0.0,
-                    'top_p': 1.0,
-                    'top_k': 1,
-                    'max_output_tokens': 8192,
-                }
+            iteration += 1
+            logger.info(f"Iteration {iteration}: {len(function_calls)} tool call(s) requested.")
+            
+            # 3. Execute tools
+            results_summary = []
+            for fc in function_calls:
+                logger.info(f"  → Executing tool: {fc.name}")
+                
+                tool_result = self.tools_service.execute_tool(
+                    fc.name,
+                    dict(fc.args)
+                )
+                
+                tools_used.append({
+                    'tool': fc.name,
+                    'args': dict(fc.args),
+                    'result': tool_result
+                })
+                
+                # Format result as text for model to interpret
+                result_str = json.dumps(tool_result, indent=2)
+                results_summary.append(
+                    f"Tool '{fc.name}' result:\n{result_str}"
+                )
+            
+            # 4. Send tool results back as raw text (manual approach)
+            response = self.chat.send_message(
+                "Tool results:\n" + "\n\n".join(results_summary) +
+                "\n\nBased on these results, provide the fixed code."
             )
+        
+        # 5. Extract result
+        if response.text:
+            fixed_code = self._extract_code_from_response(response.text)
             
-            if not response or not response.text:
-                logger.error("Empty response from Gemini")
-                return None
+            logger.info(f"✅ AutoFix process completed in {iteration} iteration(s)")
             
-            fixed_code = self._clean_response(response.text)
-            
-            # Step 4: Cache successful fix (Jules: cache for efficiency!)
-            if self.cache and fixed_code:
-                # Create result dict for cache
-                result = {
-                    'fixed_code': fixed_code,
-                    'confidence': 0.8,  # Default confidence
-                    'error_type': error.split(':')[0] if ':' in error else 'Error',
-                    'ai_used': True,
-                    'cached': False
-                }
-                self.cache.set(code, error, result)
-                logger.success("💾 Cached successful fix")
-            
-            logger.success("✅ Gemini fix successful")
-            return fixed_code
-            
-        except Exception as e:
-            logger.error(f"Gemini error: {e}")
-            return None
+            return {
+                'success': True,
+                'fixed_code': fixed_code,
+                'iterations': iteration,
+                'tools_used': tools_used,
+                'explanation': response.text
+            }
+        
+        # 6. Failure case
+        error_msg = f"Failed to get a fixed code response after {iteration} iterations."
+        logger.warning(error_msg)
+        return {
+            'success': False,
+            'fixed_code': user_code,
+            'iterations': iteration,
+            'tools_used': tools_used,
+            'explanation': error_msg
+        }
 
-    
-    def _clean_response(self, text: str) -> str:
-        """Extract Python code from Gemini response - remove markdown"""
-        if not text:
-            return ""
+    def _extract_code_from_response(self, text: str) -> str:
+        """
+        Extract Python code from a markdown response block.
+        (Corrected regex pattern for robustness)
+        """
+        # Regex to find code block enclosed in `````` or ```
+        match = re.search(r'```(?:python)?\s*(.*?)\s*```', text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
         
-        text = text.strip()
-        text = text.replace('```python', '')
-        text = text.replace('```', '')
-        
-        if text.startswith('python\n'):
-            text = text[7:]
-        elif text.startswith('python'):
-            text = text[6:]
-        
+        # Fallback: return the entire text if no code block found
         return text.strip()
-    
-    def _count_tokens(self, code: str, error_message: str) -> int:
-        """
-        Count tokens accurately using Gemini's official counter
-        
-        Jules' recommendation: Use model.count_tokens() for accuracy
-        - Exact token count (not estimation)
-        - Fast and lightweight
-        - Prevents InvalidRequestError
-        """
-        try:
-            # Build the actual prompt we'll send
-            prompt = "You are an expert Python debugger.\n\n"
-            prompt += f"Error:\n{error_message}\n\n"
-            prompt += f"Code:\n```python\n{code}\n```\n\n"
-            prompt += "Provide ONLY the fixed code, no explanations."
-            
-            # Jules: This is fast and lightweight!
-            token_result = self.model.count_tokens(prompt)
-            
-            return token_result.total_tokens
-            
-        except Exception as e:
-            # Fallback to estimation if counting fails
-            logger.warning(f"Token counting failed: {e}, using estimation")
-            total_text = code + error_message
-            estimated = int(len(total_text.split()) * 1.3)
-            return estimated
 
+    def reset_chat(self) -> None:
+        """Reset chat session"""
+        self.chat = self.model.start_chat()
+        logger.info("Chat session reset")
 
-    def is_enabled(self) -> bool:
-        """Check if Gemini is configured"""
-        return self.enabled
+    def get_chat_history(self) -> List[Dict[str, Any]]:
+        """Get chat history for debugging"""
+        return [
+            {'role': msg.role, 'parts': [str(p) for p in msg.parts]}
+            for msg in self.chat.history
+        ]

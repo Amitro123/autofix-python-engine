@@ -65,6 +65,13 @@ pytest_report.html
 .gemini_cache/
 */.gemini_cache/
 
+chroma_db/
+*.egg-info/
+test_chroma_db*/
+.gemini_cache/
+api/services/.gemini_cache/
+
+
 
 
 # Firebase
