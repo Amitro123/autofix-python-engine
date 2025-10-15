@@ -1,9 +1,9 @@
-from autofix.core.base_handler import BaseHandler
+from autofix.core.base_handler import ErrorHandler
 from typing import Tuple, Dict
 import re
 
 
-class FileNotFoundHandler(BaseHandler):
+class FileNotFoundHandler(ErrorHandler):
     """Handler for FileNotFoundError - provides suggestions"""
     
     def can_handle(self, error_output: str) -> bool:

@@ -136,7 +136,7 @@ async def fix_batch(requests: List[FixRequest]):
     for req in requests:
         start = time.time()
         try:
-            result = service.fix_code(
+            result = autofix_service.fix_code(
                 code=req.code,
                 auto_install=req.auto_install
             )
@@ -186,7 +186,7 @@ async def get_stats():
     """📊 Get comprehensive API statistics"""
     
     # Check if Gemini is enabled
-    gemini_enabled = service.gemini.is_enabled()
+    gemini_enabled = gemini_service.is_enabled()
     
     # Try to get Firebase metrics (optional)
     firebase_enabled = False
@@ -240,6 +240,7 @@ async def check_firebase():
     """
     try:
         # Import Firebase client        
+        from autofix.integrations.firestore_client import get_firestore_client
         # Try to get client
         client = get_firestore_client()
         

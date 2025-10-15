@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Tuple, Dict, Optional
 
-class BaseHandler(ABC):
+class ErrorHandler(ABC):
     """Abstract base handler for all error types"""
     
     @abstractmethod
