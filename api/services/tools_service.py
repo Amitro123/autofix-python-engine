@@ -8,11 +8,16 @@ import tempfile
 import os
 import ast
 import sys
+import json
+import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from autofix.helpers.logging_utils import get_logger
-import time
 from .sandbox_executor import SandboxExecutor
+from .memory_service import MemoryService
+from .debugger_service import DebuggerService
+
+
 
 
 logger = get_logger(__name__)
@@ -21,15 +26,24 @@ logger = get_logger(__name__)
 class ToolsService:
     """Service providing tools for Gemini Function Calling"""
     
-    def __init__(self, memory_service=None):
+    def __init__(
+    self,
+    memory_service: MemoryService = None,
+    sandbox_executor: SandboxExecutor = None,
+    debugger_service: DebuggerService = None
+    ):
+
         """
         Initialize tools service
         
         Args:
             memory_service: Optional MemoryService for RAG integration
         """
+ 
+
         self.memory_service = memory_service
-        self.sandbox = SandboxExecutor()
+        self.sandbox = sandbox_executor or SandboxExecutor()
+        self.debugger = debugger_service or DebuggerService()
         self.execution_timeout = 5  # seconds
         self.max_output_size = 10000  # characters
     
@@ -275,13 +289,44 @@ class ToolsService:
         logger.info(f"Executing tool: {function_name}")
         
         if function_name == "execute_code":
-            return self.execute_code(**arguments)
+            # NEW: Use debugger for enhanced execution
+            result = self.debugger.execute_with_trace(
+                arguments['code'],
+                arguments.get('timeout', 5)
+            )
+            return self._format_debug_result(result)
+        
         elif function_name == "validate_syntax":
             return self.validate_syntax(**arguments)
+        
         elif function_name == "search_memory":
             return self.search_memory(**arguments)
+        
         else:
             return {
                 "success": False,
                 "error": f"Unknown tool: {function_name}"
             }
+
+        
+        # ==================== Debugging ==================== 
+
+    def _format_debug_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format debugger result for AI consumption"""
+        formatted = {
+            'success': result['success'],
+            'stdout': result['stdout'],
+            'stderr': result['stderr']
+        }
+        
+        if not result['success']:
+            formatted.update({
+                'error_type': result['error_type'],
+                'error_message': result['error_message'],
+                'error_line': result['error_line'],
+                'variable_state': result['variables_at_error'],
+                'execution_context': result['execution_context']
+            })
+        
+        return formatted
+    

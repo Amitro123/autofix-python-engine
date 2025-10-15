@@ -34,6 +34,14 @@ env/
 *.env
 .env.local
 .env.*.local
+!.env.example
+*.key
+secrets/
+credentials/
+
+# API Keys in files
+*_api_key*
+*_secret*
 
 
 # IDE

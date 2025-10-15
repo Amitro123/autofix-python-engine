@@ -2,10 +2,16 @@
 Test Gemini Service Directly
 """
 
+# Load environment first
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from test_config import get_api_key
 import os
 
-# Set API key
-os.environ['GEMINI_API_KEY'] = 'AIzaSyAaA2JfF305khYDWuJkBCMRUL2JHxJc4wI'
+# Set API key from environment
+os.environ['GEMINI_API_KEY'] = get_api_key()
 
 from api.services.tools_service import ToolsService
 from api.services.gemini_service import GeminiService
@@ -14,6 +20,7 @@ from api.services.gemini_service import GeminiService
 print("Initializing services...")
 tools_service = ToolsService()
 gemini_service = GeminiService(tools_service)
+
 
 # Test code
 broken_code = """
