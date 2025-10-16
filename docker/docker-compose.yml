@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Production service
+  autofix:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FIREBASE_KEY_PATH=/app/firebase-key.json
+    volumes:
+      - ./firebase-key.json:/app/firebase-key.json:ro
+      - ./chroma_db:/app/chroma_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Development service
+  autofix-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "8001:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - .:/app
+      - /app/.venv
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ChromaDB standalone (optional)
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8002:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+
+volumes:
+  chroma_data:

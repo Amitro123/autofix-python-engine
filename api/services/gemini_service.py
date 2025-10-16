@@ -10,6 +10,8 @@ import re
 import os
 import json
 from autofix.helpers.logging_utils import get_logger
+from .fallback_service import FallbackService
+
 
 from .tools_service import ToolsService
 
@@ -30,7 +32,7 @@ class GeminiService:
         "4. Provide fixed code with explanation"
     )
 
-    def __init__(self, tools_service: ToolsService, api_key: Optional[str] = None):
+    def __init__(self, tools_service: ToolsService, api_key: Optional[str] = None, fallback_service=None):
         """Initialize"""
         # Configure the client globally or using the provided key
         if api_key:
@@ -55,6 +57,10 @@ class GeminiService:
         # Start a new chat session
         self.chat = self.model.start_chat()
         logger.info(f"✅ Gemini ready with model: {GEMINI_MODEL}")
+
+        self.fallback = fallback_service or FallbackService(
+            memory_service=tools_service.memory_service
+        )
 
     def process_user_code(self, user_code: str, max_iterations: int = 5) -> Dict[str, Any]:
         """Fix code using an iterative tool-calling loop."""

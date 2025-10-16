@@ -64,17 +64,17 @@ class GeminiService:
         tools = self.tools_service.get_tool_declarations()
         
         # Configure model generation settings
-        config = types.GenerateContentConfig(
-            system_instruction=self.SYSTEM_INSTRUCTION,
-            tools=[tools],
-            temperature=0.1  # Low temperature for consistent debugging
+        config = types.GenerationConfig(
+        temperature=0.1
         )
-        
+
         # Start a new chat session
         chat = self.client.chats.create(
             model=GEMINI_MODEL,
             history=self.history,
-            config=config
+            config=config,
+            system_instruction=self.SYSTEM_INSTRUCTION, 
+            tools=[tools] 
         )
         
         logger.info(f"Started new chat session with {GEMINI_MODEL}")
@@ -211,3 +211,6 @@ class GeminiService:
             }
             for msg in self.chat.history
         ]
+
+# Backward compatibility alias
+AutoFixService = GeminiService

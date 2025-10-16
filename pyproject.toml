@@ -27,3 +27,16 @@ Homepage = "https://github.com/Amitro123/autofix-python-engine"
 where = ["."]
 include = ["autofix*"]
 exclude = ["tests*", "demos*", "examples*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+
+

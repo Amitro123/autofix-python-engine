@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from test_config import get_api_key
+from .test_config import get_api_key
 import os
 
 
