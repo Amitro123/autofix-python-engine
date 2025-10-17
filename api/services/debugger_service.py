@@ -1,38 +1,170 @@
 """
-Debugger Service - Enhanced Code Execution with Variable Tracing
-Captures program state at exception points for AI-powered debugging
+Concrete implementation of CodeExecutor using RestrictedPython.
 """
 
+from autofix.core.base import CodeExecutor, ExecutionResult
+from RestrictedPython import compile_restricted, safe_builtins, safe_globals
+from RestrictedPython.PrintCollector import PrintCollector
 import sys
 import io
+import time
 import traceback
-import linecache
+import threading
 from typing import Dict, Any, Optional, List
 from contextlib import redirect_stdout, redirect_stderr
-from RestrictedPython import compile_restricted, safe_globals
 from autofix.helpers.logging_utils import get_logger
 
-logger = get_logger(__name__)
 
-
-class DebuggerService:
+class DebuggerService(CodeExecutor):
     """
-    Enhanced code execution with variable state tracking
-    Captures local variables, stack frames, and execution context at error points
+    Enhanced code execution with variable state tracking.
+    Captures local variables, stack frames, and execution context at error points.
     """
     
     def __init__(self):
         """Initialize debugger service"""
         self.last_execution = None
-        logger.info("DebuggerService initialized")
+        self.logger = get_logger(__name__)
+        self.logger.info("DebuggerService initialized")
     
-    def execute_with_trace(
-        self,
-        code: str,
-        timeout: int = 5
-    ) -> Dict[str, Any]:
+    def execute(self, code: str, timeout: int = 5) -> ExecutionResult:
         """
-        Execute code and capture detailed debugging information
+        Execute code safely (implements CodeExecutor interface).
+        
+        Args:
+            code: Python code to execute
+            timeout: Maximum execution time in seconds
+            
+        Returns:
+            ExecutionResult with standardized output
+        """
+        start_time = time.time()
+        self.logger.info("Executing code with RestrictedPython...")
+        
+        # Validate syntax first
+        validation = self.validate_syntax(code)
+        if not validation['valid']:
+            return ExecutionResult(
+                success=False,
+                error=validation['error'],
+                error_type='SyntaxError',
+                execution_time=time.time() - start_time
+            )
+        
+        # Compile with RestrictedPython
+        try:
+            compiled_code = compile_restricted(
+                code,
+                filename='<user_code>',
+                mode='exec'
+            )
+            
+            if compiled_code.errors:
+                error_msg = "; ".join(compiled_code.errors)
+                return ExecutionResult(
+                    success=False,
+                    error=error_msg,
+                    error_type='CompilationError',
+                    execution_time=time.time() - start_time
+                )
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                error=str(e),
+                error_type='CompilationError',
+                execution_time=time.time() - start_time
+            )
+        
+        # Setup safe environment with PrintCollector
+        restricted_globals = self._get_safe_globals()
+        local_vars = {}
+        output_capture = io.StringIO()
+        
+        # Execute with timeout
+        result = self._execute_with_timeout(
+            compiled_code.code,
+            restricted_globals,
+            local_vars,
+            output_capture,
+            timeout
+        )
+        
+        result.execution_time = time.time() - start_time
+        return result
+    
+    def _get_safe_globals(self) -> Dict[str, Any]:
+        """Get safe globals for RestrictedPython execution."""
+        return {
+            '__builtins__': {
+                **safe_builtins,
+                '_print_': PrintCollector,
+                '_getattr_': getattr,
+                '_write_': lambda x: x,
+                '_getiter_': lambda x: iter(x),
+                '_getitem_': lambda obj, index: obj[index],
+            },
+            '__name__': '__main__',
+            '__doc__': None,
+        }
+    
+    def _execute_with_timeout(
+        self,
+        code,
+        globals_dict,
+        locals_dict,
+        output_capture,
+        timeout: int
+    ) -> ExecutionResult:
+        """Execute code with timeout protection."""
+        result_data = {'success': False, 'error': None, 'output': ''}
+        
+        def run_code():
+            try:
+                with redirect_stdout(output_capture):
+                    exec(code, globals_dict, locals_dict)
+                result_data['success'] = True
+            except Exception as e:
+                result_data['error'] = str(e)
+                result_data['error_type'] = type(e).__name__
+        
+        thread = threading.Thread(target=run_code, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            self.logger.warning(f"⏱️ Execution timeout after {timeout}s")
+            return ExecutionResult(
+                success=False,
+                error=f'Execution timeout after {timeout} seconds',
+                error_type='TimeoutError',
+                output=output_capture.getvalue(),
+                timeout=True
+            )
+        
+        # Extract printed output
+        output = output_capture.getvalue()
+        if 'printed' in locals_dict:
+            output = locals_dict['printed']
+        
+        if result_data['success']:
+            self.logger.info("✅ Code executed successfully")
+            return ExecutionResult(
+                success=True,
+                output=output,
+                variables={k: str(v) for k, v in locals_dict.items() if not k.startswith('_')}
+            )
+        else:
+            self.logger.warning(f"❌ {result_data.get('error_type', 'Error')}: {result_data['error']}")
+            return ExecutionResult(
+                success=False,
+                error=result_data['error'],
+                error_type=result_data.get('error_type', 'RuntimeError'),
+                output=output
+            )
+    
+    def execute_with_trace(self, code: str, timeout: int = 5) -> Dict[str, Any]:
+        """
+        Execute code and capture detailed debugging information.
         
         Args:
             code: Python code to execute
@@ -41,7 +173,7 @@ class DebuggerService:
         Returns:
             Detailed execution result with variable states
         """
-        logger.info("Executing code with variable tracing...")
+        self.logger.info("Executing code with variable tracing...")
         
         # Prepare execution environment
         stdout_capture = io.StringIO()
@@ -59,29 +191,40 @@ class DebuggerService:
             'execution_context': {}
         }
         
-        # Create a safe, isolated namespace
-        exec_globals = safe_globals
+        # Use safe globals with PrintCollector
+        exec_globals = self._get_safe_globals()
         exec_locals = {}
         
         try:
             # Compile the code in a restricted environment
-            logger.info("Compiling code with RestrictedPython...")
+            self.logger.info("Compiling code with RestrictedPython...")
             byte_code = compile_restricted(
                 code,
                 filename='<inline code>',
                 mode='exec'
             )
-
+            
+            if byte_code.errors:
+                result['error_type'] = 'CompilationError'
+                result['error_message'] = '; '.join(byte_code.errors)
+                result['stderr'] = result['error_message']
+                return result
+            
             # Execute with output capture
             with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                exec(byte_code, exec_globals, exec_locals)
+                exec(byte_code.code, exec_globals, exec_locals)
             
             # Success case
             result['success'] = True
             result['stdout'] = stdout_capture.getvalue()
+            
+            # Extract printed output if PrintCollector was used
+            if 'printed' in exec_locals:
+                result['stdout'] = exec_locals['printed']
+            
             result['variables_at_end'] = self._serialize_variables(exec_locals)
             
-            logger.info("✅ Code executed successfully")
+            self.logger.info("✅ Code executed successfully")
             
         except SyntaxError as e:
             result['error_type'] = 'SyntaxError'
@@ -89,7 +232,7 @@ class DebuggerService:
             result['error_line'] = e.lineno
             result['stderr'] = stderr_capture.getvalue() or traceback.format_exc()
             
-            logger.warning(f"SyntaxError at line {e.lineno}: {e}")
+            self.logger.warning(f"SyntaxError at line {e.lineno}: {e}")
             
         except Exception as e:
             # Capture detailed error information
@@ -122,21 +265,22 @@ class DebuggerService:
                     result['variables_at_error']
                 )
             
-            logger.warning(f"❌ {result['error_type']}: {result['error_message']}")
+            self.logger.warning(f"❌ {result['error_type']}: {result['error_message']}")
         
         finally:
             result['stdout'] = stdout_capture.getvalue()
+            if 'printed' in exec_locals and not result['stdout']:
+                result['stdout'] = exec_locals['printed']
         
         self.last_execution = result
         return result
     
+    # [Rest of the helper methods stay the same]
     def _capture_frame_variables(self, frame) -> Dict[str, Any]:
         """Capture and serialize all variables in a stack frame"""
         variables = {}
         
-        # Get local variables
         for var_name, var_value in frame.f_locals.items():
-            # Skip internal/private variables
             if var_name.startswith('__') and var_name.endswith('__'):
                 continue
             
@@ -145,26 +289,22 @@ class DebuggerService:
         return variables
     
     def _serialize_value(self, value: Any) -> Dict[str, Any]:
-        """
-        Serialize a Python value for debugging
-        Returns type, representation, and useful metadata
-        """
+        """Serialize a Python value for debugging"""
         result = {
             'type': type(value).__name__,
             'value': None,
-            'repr': repr(value)[:200],  # Limit repr length
+            'repr': repr(value)[:200],
             'metadata': {}
         }
         
         try:
-            # Handle different types
             if isinstance(value, (int, float, str, bool, type(None))):
                 result['value'] = value
                 
             elif isinstance(value, (list, tuple)):
                 result['value'] = [self._serialize_value(item)['repr'] for item in value[:5]]
                 result['metadata']['length'] = len(value)
-                result['metadata']['first_5_items'] = True if len(value) > 5 else False
+                result['metadata']['first_5_items'] = len(value) > 5
                 
             elif isinstance(value, dict):
                 result['value'] = {
@@ -172,14 +312,13 @@ class DebuggerService:
                     for k, v in list(value.items())[:5]
                 }
                 result['metadata']['length'] = len(value)
-                result['metadata']['first_5_items'] = True if len(value) > 5 else False
+                result['metadata']['first_5_items'] = len(value) > 5
                 
             elif isinstance(value, set):
                 result['value'] = [self._serialize_value(item)['repr'] for item in list(value)[:5]]
                 result['metadata']['length'] = len(value)
                 
             else:
-                # Complex objects
                 result['value'] = str(value)[:100]
                 result['metadata']['attributes'] = [
                     attr for attr in dir(value) 
@@ -208,7 +347,6 @@ class DebuggerService:
             frame = tb.tb_frame
             line_no = tb.tb_lineno
             
-            # Get code context (3 lines before and after)
             start_line = max(0, line_no - 4)
             end_line = min(len(code_lines), line_no + 3)
             
@@ -238,10 +376,7 @@ class DebuggerService:
         error_line: int,
         variables: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Build human-readable execution context
-        This helps AI understand what went wrong
-        """
+        """Build human-readable execution context"""
         code_lines = code.split('\n')
         
         if not error_line or error_line > len(code_lines):
@@ -256,10 +391,8 @@ class DebuggerService:
             'analysis': []
         }
         
-        # Analyze common error patterns
         analysis = []
         
-        # IndexError analysis
         if '[' in error_code and ']' in error_code:
             for var_name, var_data in variables.items():
                 if var_data['type'] in ('list', 'tuple', 'str'):
@@ -269,8 +402,7 @@ class DebuggerService:
                         f"with length {length}"
                     )
         
-        # KeyError analysis
-        if '[' in error_code and '"' in error_code or "'" in error_code:
+        if '[' in error_code and ('"' in error_code or "'" in error_code):
             for var_name, var_data in variables.items():
                 if var_data['type'] == 'dict':
                     length = var_data.get('metadata', {}).get('length', 0)
@@ -278,7 +410,6 @@ class DebuggerService:
                         f"Dictionary '{var_name}' has {length} keys"
                     )
         
-        # Type error analysis
         if '+' in error_code or '-' in error_code or '*' in error_code:
             for var_name, var_data in variables.items():
                 analysis.append(

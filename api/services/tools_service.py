@@ -192,7 +192,7 @@ class ToolsService:
         Returns:
             List of tool declarations for Gemini
         """
-        from google.generativeai.types import FunctionDeclaration, Tool
+        from google.genai.types import FunctionDeclaration, Tool
         
         # Define function declarations
         execute_code_func = FunctionDeclaration(

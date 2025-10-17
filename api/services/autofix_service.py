@@ -6,8 +6,8 @@ Manages the chat session, system instructions, and tool calling lifecycle.
 
 from typing import List, Dict, Any, Optional
 import re
-import google.generativeai as genai
-from google.generativeai import types
+from google import genai
+from google.genai import types
 from autofix.helpers.logging_utils import get_logger
 
 from .tools_service import ToolsService
@@ -53,9 +53,7 @@ class GeminiService:
             logger.error(f"Failed to initialize Gemini Client. Ensure API key is set: {e}")
             raise
 
-        self.tools_service = tools_service
-        self.history: List[types.Content] = []
-        
+        self.tools_service = tools_service    
         # Start a new chat session when the service is initialized
         self.chat = self._start_new_chat()
 
@@ -64,22 +62,38 @@ class GeminiService:
         tools = self.tools_service.get_tool_declarations()
         
         # Configure model generation settings
-        config = types.GenerationConfig(
-        temperature=0.1
+        # system_instruction and tools go in the config
+        config = types.GenerateContentConfig(
+            temperature=0.1,
+            system_instruction=self.SYSTEM_INSTRUCTION,
+            tools=[tools]  # Tools are passed as a list in config
         )
 
         # Start a new chat session
         chat = self.client.chats.create(
             model=GEMINI_MODEL,
-            history=self.history,
-            config=config,
-            system_instruction=self.SYSTEM_INSTRUCTION, 
-            tools=[tools] 
+            config=config
         )
-        
+
         logger.info(f"Started new chat session with {GEMINI_MODEL}")
         return chat
 
+
+    def fix_code(self, code: str, auto_install: bool = False) -> Dict[str, Any]:
+        """Fix code - wrapper for process_user_code to match API expectations."""
+        result = self.process_user_code(code)
+        
+        return {
+            'success': result.get('success', False),
+            'original_code': code,
+            'fixed_code': result.get('fixed_code', code),
+            'error_type': 'Unknown',
+            'method': 'gemini' if result.get('success') else 'error',
+            'cache_hit': False,
+            'changes': [],
+            'explanation': result.get('explanation', '')
+        }
+    
     def process_user_code(self, user_code: str, max_iterations: int = 5) -> Dict[str, Any]:
         """
         Processes a user's code prompt and runs the AutoFix loop.
@@ -214,3 +228,4 @@ class GeminiService:
 
 # Backward compatibility alias
 AutoFixService = GeminiService
+

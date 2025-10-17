@@ -1,22 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from api.services.autofix_service import GeminiService, AutoFixService
+from api.services.autofix_service import GeminiService, AutoFixService, GEMINI_MODEL
 from api.services.tools_service import ToolsService
 from autofix.helpers.logging_utils import get_logger
 import time
-from typing import List
+from typing import List, Optional
 import subprocess
 import tempfile
 import sys
+import os
+from api.dependencies import get_autofix_service, get_gemini_service
+
 
 
 router = APIRouter()
 logger = get_logger(__name__)
 
-
-# Initialize services with proper dependencies
-autofix_service = None  # Disabled - needs service initialization refactor
-gemini_service = None  # Disabled - needs service initialization refactor
 
 
 
@@ -30,7 +29,7 @@ class FixRequest(BaseModel):
 class FixResponse(BaseModel):
     success: bool
     original_code: str
-    fixed_code: str = None
+    fixed_code: str | None = None
     error_type: str
     method: str
     cache_hit: bool = False
@@ -78,26 +77,39 @@ async def validate_code(request: ValidateRequest):
         }
     
     finally:
-        import os
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
 
 @router.post("/fix")
-async def fix_code(request: FixRequest):
+async def fix_code(
+    request: FixRequest,
+    autofix_service: Optional[GeminiService] = Depends(get_autofix_service)
+):
     """
     🔧 Fix Python code using Hybrid AI approach
+    
+    Uses FastAPI dependency injection for service management.
     """
     start_time = time.time()
     
+    # Check if service is available
+    if autofix_service is None:
+        logger.warning("AutoFix service unavailable - check GEMINI_API_KEY")
+        raise HTTPException(
+            status_code=503,
+            detail="AutoFix service is temporarily unavailable. Please check configuration."
+        )
+    
     try:
-        logger.info(f"📥 Received fix request for: {getattr(request, 'error', 'unknown')}")
+        logger.info(f"📥 Received fix request")
         
         # Call service
         result = autofix_service.fix_code(
             code=request.code,
             auto_install=getattr(request, 'auto_install', False)
         )
+
         
         # Log result
         execution_time = time.time() - start_time
@@ -135,7 +147,7 @@ async def fix_code(request: FixRequest):
 
 
 @router.post("/fix-batch", response_model=List[FixResponse])
-async def fix_batch(requests: List[FixRequest]):
+async def fix_batch(requests: List[FixRequest], autofix_service: Optional[GeminiService] = Depends(get_autofix_service)):
     """
     🔧 Fix multiple code snippets at once
     
@@ -164,6 +176,7 @@ async def fix_batch(requests: List[FixRequest]):
                 "original_code": req.code,
                 "fixed_code": None,
                 "error_type": str(type(e).__name__),
+                "method": "error",
                 "changes": [],
                 "execution_time": round(time.time() - start, 3)
             })
@@ -198,18 +211,32 @@ async def supported_errors():
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(
+    gemini_service: Optional[GeminiService] = Depends(get_gemini_service)
+):
     """📊 Get comprehensive API statistics"""
     
     # Check if Gemini is enabled
-    gemini_enabled = gemini_service.is_enabled()
+    gemini_enabled = False
+    gemini_model = None
     
-    # Try to get Firebase metrics (optional)
+    if gemini_service is not None:
+        try:
+            gemini_enabled = gemini_service.is_enabled()
+            gemini_model = GEMINI_MODEL if gemini_enabled else None
+        except (AttributeError, RuntimeError) as e:
+            logger.warning(f"Failed to check Gemini status: {e}")
+            gemini_enabled = False
+        except Exception as e:
+            logger.error(f"Unexpected error checking Gemini: {e}", exc_info=True)
+            gemini_enabled = False
+    
+    # Initialize Firebase variables
     firebase_enabled = False
     total_fixes_from_db = 0
     
+    # Try to get Firebase metrics (optional)
     try:
-        # ✅ Import INSIDE the function
         from autofix.integrations.firestore_client import get_firestore_client
         client = get_firestore_client()
         
@@ -217,32 +244,35 @@ async def get_stats():
             firebase_enabled = True
             metrics_ref = client.collection('autofix_metrics')
             total_fixes_from_db = len(list(metrics_ref.stream()))
-    except:
-        pass
+            logger.debug(f"Retrieved {total_fixes_from_db} metrics from Firebase")
+    except ImportError as e:
+        logger.debug(f"Firebase client not available: {e}")
+    except (AttributeError, ValueError, RuntimeError) as e:
+        logger.warning(f"Firebase operation failed: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error accessing Firebase: {e}", exc_info=True)
     
     return {
-        "api_version": "2.0.0",
+        "api_version": "2.4.0",
         "autofix_version": "1.0.0",
         "gemini_enabled": gemini_enabled,
-        "gemini_model": "gemini-2.5-pro" if gemini_enabled else None,
+        "gemini_model": gemini_model,
         "gemini_free_tier": True if gemini_enabled else None,
         "firebase_enabled": firebase_enabled,
         "total_fixes": total_fixes_from_db,
         "success_rate": 0.95,
         "avg_execution_time": 0.5,
-        "supported_errors": 7,
+        "supported_errors": 12,
         "endpoints": {
             "fix": "/api/v1/fix",
             "batch": "/api/v1/fix-batch",
             "validate": "/api/v1/validate",
             "errors": "/api/v1/errors",
             "firebase": "/api/v1/firebase-status",
-            "metrics": "/api/v1/firebase-metrics"
+            "metrics": "/api/v1/firebase-metrics",
+            "stats": "/api/v1/stats"
         }
     }
-
-
-
 
 @router.get("/firebase-status")
 async def check_firebase():
