@@ -6,7 +6,7 @@ Manages the chat session, system instructions, and tool calling lifecycle.
 
 from typing import List, Dict, Any, Optional
 import re
-from google import genai
+import google.generativeai as genai
 from google.generativeai import types
 from autofix.helpers.logging_utils import get_logger
 
