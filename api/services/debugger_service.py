@@ -9,6 +9,7 @@ import traceback
 import linecache
 from typing import Dict, Any, Optional, List
 from contextlib import redirect_stdout, redirect_stderr
+from RestrictedPython import compile_restricted, safe_globals
 from autofix.helpers.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -58,17 +59,22 @@ class DebuggerService:
             'execution_context': {}
         }
         
-        # Create isolated namespace
-        exec_globals = {
-            '__builtins__': __builtins__,
-            '__name__': '__main__'
-        }
+        # Create a safe, isolated namespace
+        exec_globals = safe_globals
         exec_locals = {}
         
         try:
+            # Compile the code in a restricted environment
+            logger.info("Compiling code with RestrictedPython...")
+            byte_code = compile_restricted(
+                code,
+                filename='<inline code>',
+                mode='exec'
+            )
+
             # Execute with output capture
             with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                exec(code, exec_globals, exec_locals)
+                exec(byte_code, exec_globals, exec_locals)
             
             # Success case
             result['success'] = True
