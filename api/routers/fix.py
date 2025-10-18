@@ -9,11 +9,20 @@ import subprocess
 import tempfile
 import sys
 import os
-from api.dependencies import get_autofix_service, get_gemini_service
+from api.dependencies import (
+    get_autofix_service,
+    get_gemini_service,
+    get_firestore_client
+)
+from api.services.gemini_service import GeminiService
+GEMINI_MODEL = "gemini-2.0-flash-exp"
 
 
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["fix"]
+)
 
-router = APIRouter()
 logger = get_logger(__name__)
 
 

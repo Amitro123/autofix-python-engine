@@ -1,48 +1,40 @@
 """
-Refactored DebuggerService with Template Method Pattern.
-Unified execution logic with configurable tracing modes.
+Refactored DebuggerService with Jules' improvements
+Complete working version with output capture fixed
 """
 
 from autofix.core.base import CodeExecutor, ExecutionResult
 from RestrictedPython import compile_restricted, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import sys
 import io
 import time
 import ctypes
-import traceback
 import threading
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List
 from contextlib import redirect_stdout, redirect_stderr
 from autofix.helpers.logging_utils import get_logger
 
 
 class ExecutionMode(Enum):
-    """Execution mode configuration."""
-    SIMPLE = "simple"      # Fast, minimal tracing
-    TRACED = "traced"      # Full context capture
+    """Execution mode: SIMPLE (fast) or TRACED (detailed)."""
+    SIMPLE = "simple"
+    TRACED = "traced"
 
 
 @dataclass
 class ExecutionConfig:
-    """Centralized execution configuration."""
+    """Execution configuration."""
     mode: ExecutionMode = ExecutionMode.SIMPLE
     timeout: int = 5
-    capture_variables: bool = True
-    capture_stack: bool = False
-    capture_context: bool = False
 
 
 class DebuggerService(CodeExecutor):
-    """
-    Safe code execution with configurable tracing.
-    Uses Template Method pattern for unified execution flow.
-    """
+    """Safe code execution with configurable tracing."""
     
     def __init__(self):
-        """Initialize debugger service."""
         self.last_execution: Optional[Dict[str, Any]] = None
         self.logger = get_logger(__name__)
         self.logger.info("DebuggerService initialized")
@@ -50,153 +42,121 @@ class DebuggerService(CodeExecutor):
     # ==================== Public API ====================
     
     def execute(self, code: str, timeout: int = 5) -> ExecutionResult:
-        """
-        Execute code safely (CodeExecutor interface).
-        
-        Args:
-            code: Python code to execute
-            timeout: Maximum execution time in seconds
-            
-        Returns:
-            ExecutionResult with standardized output
-        """
+        """Execute code safely (simple mode)."""
         config = ExecutionConfig(mode=ExecutionMode.SIMPLE, timeout=timeout)
         return self._execute_internal(code, config)
     
     def execute_with_trace(self, code: str, timeout: int = 5) -> Dict[str, Any]:
-        """
-        Execute code with detailed context capture.
-        Backward-compatible legacy method.
-        
-        Args:
-            code: Python code to execute
-            timeout: Execution timeout in seconds
-            
-        Returns:
-            Dict with detailed execution information
-        """
-        config = ExecutionConfig(
-            mode=ExecutionMode.TRACED,
-            timeout=timeout,
-            capture_variables=True,
-            capture_stack=True,
-            capture_context=True
-        )
+        """Execute with detailed context (legacy dict format)."""
+        config = ExecutionConfig(mode=ExecutionMode.TRACED, timeout=timeout)
         result = self._execute_internal(code, config)
-        legacy_dict = self._to_trace_dict(result, code)
-        self.last_execution = legacy_dict
-        return legacy_dict
+        trace_dict = self._to_trace_dict(result, code)
+        self.last_execution = trace_dict
+        return trace_dict
     
     def get_last_execution(self) -> Optional[Dict[str, Any]]:
-        """Get the last traced execution result."""
         return self.last_execution
     
     def clear_last_execution(self) -> None:
-        """Clear last execution cache."""
         self.last_execution = None
     
-    # ==================== Core Execution (Template Method) ====================
+    # ==================== Core Execution ====================
     
     def _execute_internal(self, code: str, config: ExecutionConfig) -> ExecutionResult:
-        """
-        Template Method: Unified execution pipeline.
-        All execution flows through this method.
-        """
+        """Template method: unified execution pipeline."""
         start_time = time.time()
-        mode_name = config.mode.value
-        self.logger.info(f"Executing code (mode={mode_name}, timeout={config.timeout}s)")
+        self.logger.info(f"Executing (mode={config.mode.value}, timeout={config.timeout}s)")
         
-        # Step 1: Validate syntax
+        # Validate syntax
         validation = self.validate_syntax(code)
         if not validation['valid']:
-            return self._create_result(
-                success=False,
-                error=validation['error'],
+            return ExecutionResult(
+                success=False, 
+                error=validation['error'], 
                 error_type='SyntaxError',
-                start_time=start_time
+                execution_time=time.time() - start_time
             )
         
-        # Step 2: Compile with RestrictedPython
-        compiled_code = self._compile_code(code)
-        if not compiled_code['success']:
-            return self._create_result(
+        # Compile
+        compiled = self._compile_code(code)
+        if not compiled['success']:
+            return ExecutionResult(
                 success=False,
-                error=compiled_code['error'],
+                error=compiled['error'],
                 error_type='CompilationError',
-                start_time=start_time
+                execution_time=time.time() - start_time
             )
         
-        # Step 3: Setup execution environment
+        # Setup environment
         globals_dict = self._get_safe_globals()
         locals_dict = {}
         output_capture = io.StringIO()
         
-        # Step 4: Execute with appropriate strategy
+        # Execute with appropriate strategy
         if config.mode == ExecutionMode.TRACED:
-            result = self._execute_traced(
-                compiled_code['code'],
-                globals_dict,
-                locals_dict,
-                output_capture,
-                config,
-                code  # Pass original code for context
-            )
+            result = self._execute_traced(compiled['code'], globals_dict, locals_dict, 
+                                         output_capture, config, code)
         else:
-            result = self._execute_simple(
-                compiled_code['code'],
-                globals_dict,
-                locals_dict,
-                output_capture,
-                config
-            )
+            result = self._execute_simple(compiled['code'], globals_dict, locals_dict,
+                                         output_capture, config)
         
         result.execution_time = time.time() - start_time
         return result
     
-    # ==================== Execution Strategies ====================
-    
-    def _execute_simple(
-        self,
-        code: Any,
-        globals_dict: Dict[str, Any],
-        locals_dict: Dict[str, Any],
-        output_capture: io.StringIO,
-        config: ExecutionConfig
-    ) -> ExecutionResult:
-        """Simple execution without detailed tracing (faster)."""
+    def _execute_simple(self, code, globals_dict, locals_dict, output_capture, config):
+        """Simple execution - WITH VARIABLE CAPTURE ON ERROR."""
         result_data = {'success': False, 'error': None, 'error_type': None}
         thread_id = None
+        output_lines = []
         
         def run_code():
             nonlocal thread_id
             thread_id = threading.get_ident()
+            
+            # Monkey-patch builtins.print
+            import builtins
+            original_print = builtins.print
+            
+            def captured_print(*args, **kwargs):
+                """Capture print calls."""
+                sep = kwargs.get('sep', ' ')
+                end = kwargs.get('end', '\n')
+                line = sep.join(str(arg) for arg in args) + end
+                output_lines.append(line)
+            
+            builtins.print = captured_print
+            
             try:
-                with redirect_stdout(output_capture):
-                    exec(code, globals_dict, locals_dict)
+                exec(code, globals_dict, locals_dict)
                 result_data['success'] = True
             except Exception as e:
                 result_data['error'] = str(e)
                 result_data['error_type'] = type(e).__name__
+            finally:
+                # Restore original print
+                builtins.print = original_print
         
-        # Execute with timeout
         thread = threading.Thread(target=run_code, daemon=True)
         thread.start()
         thread.join(timeout=config.timeout)
         
-        # Handle timeout
         if thread.is_alive():
             return self._handle_timeout(thread, thread_id, output_capture, config.timeout)
         
-        # Extract output
-        output = self._extract_output(output_capture, locals_dict)
+        output = ''.join(output_lines)
         
-        # Build result
+        # ✨ CAPTURE VARIABLES EVEN ON ERROR (simple serialization)
+        captured_vars = {
+            k: str(v) for k, v in locals_dict.items() 
+            if not k.startswith('_') and k != 'print'
+        }
+        
         if result_data['success']:
-            self.logger.info("✅ Code executed successfully")
+            self.logger.info(f"✅ Executed, {len(output_lines)} prints, {len(output)} chars")
             return ExecutionResult(
                 success=True,
                 output=output,
-                variables=self._serialize_simple_variables(locals_dict)
+                variables=captured_vars  # ← Capture on success
             )
         else:
             self.logger.warning(f"❌ {result_data['error_type']}: {result_data['error']}")
@@ -204,94 +164,130 @@ class DebuggerService(CodeExecutor):
                 success=False,
                 error=result_data['error'],
                 error_type=result_data['error_type'] or 'RuntimeError',
-                output=output
+                output=output,
+                variables=captured_vars  # ← ALSO capture on error!
+            
             )
-    
-    def _execute_traced(
-        self,
-        code: Any,
-        globals_dict: Dict[str, Any],
-        locals_dict: Dict[str, Any],
-        output_capture: io.StringIO,
-        config: ExecutionConfig,
-        original_code: str
-    ) -> ExecutionResult:
-        """Traced execution with full context capture."""
-        stderr_capture = io.StringIO()
-        trace_data = {
-            'success': False,
-            'variables': {},
-            'stack_trace': [],
-            'context': {}
-        }
+        
+    def _execute_traced(self, code, globals_dict, locals_dict, output_capture, config, original_code):
+        """Traced execution - WORKS WITH PRINT!"""
+        output_lines = []
+        
+        import builtins
+        original_print = builtins.print
+        
+        def captured_print(*args, **kwargs):
+            """Capture print calls."""
+            sep = kwargs.get('sep', ' ')
+            end = kwargs.get('end', '\n')
+            line = sep.join(str(arg) for arg in args) + end
+            output_lines.append(line)
+        
+        builtins.print = captured_print
         
         try:
-            with redirect_stdout(output_capture), redirect_stderr(stderr_capture):
-                exec(code, globals_dict, locals_dict)
+            exec(code, globals_dict, locals_dict)
             
-            # Success case
-            trace_data['success'] = True
-            trace_data['variables'] = self._serialize_variables(locals_dict)
-            self.logger.info("✅ Code executed successfully (traced)")
+            output = ''.join(output_lines)
+            self.logger.info(f"✅ Traced, {len(output_lines)} prints, {len(output)} chars")
             
             return ExecutionResult(
                 success=True,
-                output=self._extract_output(output_capture, locals_dict),
-                variables=trace_data['variables']
+                output=output,
+                variables=self._serialize_variables(locals_dict)
             )
             
         except Exception as e:
-            # Capture detailed error information
-            exc_type, exc_value, exc_tb = sys.exc_info()
+            error_context = self._capture_error_context(e, original_code)
+            output = ''.join(output_lines)
             
-            trace_data['error_type'] = exc_type.__name__
-            trace_data['error_message'] = str(exc_value)
-            
-            # Capture stack and context if enabled
-            if config.capture_stack and exc_tb:
-                trace_data['stack_trace'] = self._build_stack_trace(exc_tb, original_code)
-                trace_data['error_line'] = self._get_error_line(exc_tb)
-                trace_data['variables'] = self._capture_frame_variables(
-                    self._get_error_frame(exc_tb)
-                )
-            
-            if config.capture_context and exc_tb:
-                trace_data['context'] = self._build_execution_context(
-                    original_code,
-                    trace_data.get('error_line'),
-                    trace_data['variables']
-                )
-            
-            self.logger.warning(f"❌ {trace_data['error_type']}: {trace_data['error_message']}")
-            
+            self.logger.warning(f"❌ {error_context['error_type']}: {error_context['error_message']}")
             return ExecutionResult(
                 success=False,
-                error=str(exc_value),
-                error_type=exc_type.__name__,
-                output=self._extract_output(output_capture, locals_dict),
-                variables=trace_data['variables']
+                error=error_context['error_message'],
+                error_type=error_context['error_type'],
+                output=output,
+                variables=error_context['variables']
             )
+        finally:
+            # Always restore original print
+            builtins.print = original_print
+
     
-    # ==================== Helper Methods ====================
+    # ==================== Error Context Capture (Jules' Suggestion) ====================
+    
+    def _capture_error_context(self, exception: Exception, code: str) -> Dict[str, Any]:
+        """
+        Capture detailed error context from exception.
+        Extracted from _execute_traced per Jules' review.
+        """
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        
+        context = {
+            'error_type': exc_type.__name__ if exc_type else 'UnknownError',
+            'error_message': str(exc_value),
+            'variables': {},
+            'error_line': None
+        }
+        
+        if exc_tb:
+            error_frame = self._get_error_frame(exc_tb)
+            context['variables'] = self._capture_frame_variables(error_frame)
+            context['error_line'] = self._get_error_line_number(exc_tb)
+            
+            self.logger.debug(f"Captured error context: line {context['error_line']}, "
+                            f"{len(context['variables'])} variables")
+        
+        return context
+    
+    def _get_error_line_number(self, tb) -> Optional[int]:
+        """Get the line number where the error occurred."""
+        while tb.tb_next:
+            tb = tb.tb_next
+        return tb.tb_lineno
+    
+    # ==================== Helpers ====================
     
     def _compile_code(self, code: str) -> Dict[str, Any]:
-        """Compile code with RestrictedPython."""
+        """
+        Compile with RestrictedPython.
+        FIXED: Handles direct code object return.
+        """
         try:
-            compiled = compile_restricted(code, filename='<user_code>', mode='exec')
+            compiled = compile_restricted(code, '<user_code>', 'exec')
             
-            if compiled.errors:
-                return {
-                    'success': False,
-                    'error': '; '.join(compiled.errors)
-                }
+            # Case 1: compile_restricted returns a code object directly (common)
+            if hasattr(compiled, 'co_code'):
+                self.logger.debug("Got code object directly from compile_restricted")
+                return {'success': True, 'code': compiled}
             
-            return {'success': True, 'code': compiled.code}
+            # Case 2: Returns CompileResult object (newer RestrictedPython)
+            elif hasattr(compiled, 'code') and hasattr(compiled, 'errors'):
+                if compiled.errors:
+                    error_msg = '; '.join(compiled.errors)
+                    self.logger.warning(f"RestrictedPython errors: {error_msg}")
+                    return {'success': False, 'error': error_msg}
+                
+                self.logger.debug("Got CompileResult from compile_restricted")
+                return {'success': True, 'code': compiled.code}
+            
+            # Case 3: Unexpected type
+            else:
+                error_msg = f"Unexpected compile_restricted result: {type(compiled)}"
+                self.logger.error(error_msg)
+                return {'success': False, 'error': error_msg}
+            
+        except SyntaxError as e:
+            error_msg = f"Syntax error at line {e.lineno}: {e.msg}"
+            self.logger.warning(error_msg)
+            return {'success': False, 'error': error_msg}
             
         except Exception as e:
+            self.logger.error(f"Compilation failed: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
     def _get_safe_globals(self) -> Dict[str, Any]:
-        """Get safe globals for RestrictedPython execution."""
+        """Safe globals for RestrictedPython with common builtins."""
         return {
             '__builtins__': {
                 **safe_builtins,
@@ -300,82 +296,64 @@ class DebuggerService(CodeExecutor):
                 '_write_': lambda x: x,
                 '_getiter_': lambda x: iter(x),
                 '_getitem_': lambda obj, index: obj[index],
+                # Add commonly needed builtins
+                'sum': sum,           
+                'len': len,           
+                'min': min,           
+                'max': max,           
+                'abs': abs,           
+                'round': round,       
+                'sorted': sorted,     
+                'enumerate': enumerate,
+                'zip': zip,           
+                'range': range,       
+                'list': list,         
+                'dict': dict,         
+                'set': set,           
+                'tuple': tuple,       
+                'str': str,           
+                'int': int,           
+                'float': float,       
+                'bool': bool,         
             },
             '__name__': '__main__',
             '__doc__': None,
         }
     
-    def _handle_timeout(
-        self,
-        thread: threading.Thread,
-        thread_id: Optional[int],
-        output_capture: io.StringIO,
-        timeout: int
-    ) -> ExecutionResult:
-        """Handle timeout with forced thread termination."""
-        self.logger.warning(f"⏱️ Execution timeout after {timeout}s - forcing termination")
+    def _handle_timeout(self, thread, thread_id, output_capture, timeout):
+        """Handle timeout with forced termination."""
+        self.logger.warning(f"⏱️ Timeout after {timeout}s - forcing termination")
         
-        # Attempt forced termination
         if thread_id:
             try:
                 ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_long(thread_id),
-                    ctypes.py_object(SystemExit)
+                    ctypes.c_long(thread_id), ctypes.py_object(SystemExit)
                 )
-                thread.join(timeout=0.5)  # Grace period
+                thread.join(timeout=0.5)
             except Exception as e:
-                self.logger.error(f"Failed to terminate thread: {e}")
+                self.logger.error(f"Failed to terminate: {e}")
         
-        # Check if still alive
         if thread.is_alive():
-            self.logger.critical(
-                f"🚨 SECURITY: Thread survived termination! Thread ID: {thread_id}"
-            )
+            self.logger.critical(f"🚨 SECURITY: Thread survived! ID: {thread_id}")
         
         return ExecutionResult(
             success=False,
-            error=f'Execution timeout after {timeout} seconds',
+            error=f'Timeout after {timeout}s',
             error_type='TimeoutError',
             output=output_capture.getvalue(),
             timeout=True
         )
     
-    def _extract_output(self, output_capture: io.StringIO, locals_dict: Dict) -> str:
-        """Extract output from capture or PrintCollector."""
-        output = output_capture.getvalue()
-        if 'printed' in locals_dict:
-            output = locals_dict['printed']
-        return output
+    def _get_error_frame(self, tb):
+        """Get the frame where error occurred."""
+        while tb.tb_next:
+            tb = tb.tb_next
+        return tb.tb_frame
     
-    def _create_result(
-        self,
-        success: bool,
-        error: Optional[str] = None,
-        error_type: Optional[str] = None,
-        start_time: Optional[float] = None
-    ) -> ExecutionResult:
-        """Create ExecutionResult with timing."""
-        result = ExecutionResult(
-            success=success,
-            error=error,
-            error_type=error_type
-        )
-        if start_time:
-            result.execution_time = time.time() - start_time
-        return result
-    
-    # ==================== Variable Serialization ====================
-    
-    def _serialize_simple_variables(self, variables: Dict) -> Dict[str, str]:
-        """Simple variable serialization (string representation)."""
-        return {
-            k: str(v) 
-            for k, v in variables.items() 
-            if not k.startswith('_')
-        }
+    # ==================== Serialization ====================
     
     def _serialize_variables(self, variables: Dict) -> Dict[str, Any]:
-        """Full variable serialization with type information."""
+        """Serialize variables with type info."""
         return {
             name: self._serialize_value(value)
             for name, value in variables.items()
@@ -383,10 +361,9 @@ class DebuggerService(CodeExecutor):
         }
     
     def _serialize_value(self, value: Any) -> Dict[str, Any]:
-        """Serialize a single value with metadata."""
+        """Serialize single value."""
         result = {
             'type': type(value).__name__,
-            'value': None,
             'repr': repr(value)[:200],
             'metadata': {}
         }
@@ -394,155 +371,34 @@ class DebuggerService(CodeExecutor):
         try:
             if isinstance(value, (int, float, str, bool, type(None))):
                 result['value'] = value
-                
             elif isinstance(value, (list, tuple)):
-                result['value'] = [self._serialize_value(item)['repr'] for item in value[:5]]
-                result['metadata'] = {
-                    'length': len(value),
-                    'truncated': len(value) > 5
-                }
-                
+                result['value'] = [repr(item)[:50] for item in value[:5]]
+                result['metadata'] = {'length': len(value), 'truncated': len(value) > 5}
             elif isinstance(value, dict):
-                result['value'] = {
-                    k: self._serialize_value(v)['repr'] 
-                    for k, v in list(value.items())[:5]
-                }
-                result['metadata'] = {
-                    'length': len(value),
-                    'truncated': len(value) > 5
-                }
-                
+                result['value'] = {k: repr(v)[:50] for k, v in list(value.items())[:5]}
+                result['metadata'] = {'length': len(value), 'truncated': len(value) > 5}
             elif isinstance(value, set):
-                result['value'] = [self._serialize_value(item)['repr'] for item in list(value)[:5]]
+                result['value'] = [repr(item)[:50] for item in list(value)[:5]]
                 result['metadata'] = {'length': len(value)}
-                
             else:
                 result['value'] = str(value)[:100]
-                result['metadata']['attributes'] = [
-                    attr for attr in dir(value) 
-                    if not attr.startswith('_')
-                ][:10]
-        
         except Exception as e:
-            result['value'] = f"<Error serializing: {e}>"
+            result['value'] = f"<Error: {e}>"
         
         return result
     
     def _capture_frame_variables(self, frame) -> Dict[str, Any]:
-        """Capture all variables in a stack frame."""
+        """Capture variables from stack frame."""
         return {
             var_name: self._serialize_value(var_value)
             for var_name, var_value in frame.f_locals.items()
             if not (var_name.startswith('__') and var_name.endswith('__'))
         }
     
-    # ==================== Stack Trace & Context ====================
-    
-    def _get_error_frame(self, tb):
-        """Get the frame where the error occurred (last frame)."""
-        while tb.tb_next:
-            tb = tb.tb_next
-        return tb.tb_frame
-    
-    def _get_error_line(self, tb) -> int:
-        """Get the line number where the error occurred."""
-        while tb.tb_next:
-            tb = tb.tb_next
-        return tb.tb_lineno
-    
-    def _build_stack_trace(self, tb, code: str) -> List[Dict[str, Any]]:
-        """Build enhanced stack trace with code context."""
-        stack = []
-        code_lines = code.split('\n')
-        
-        while tb:
-            frame = tb.tb_frame
-            line_no = tb.tb_lineno
-            
-            # Get surrounding lines (±3)
-            start = max(0, line_no - 4)
-            end = min(len(code_lines), line_no + 3)
-            
-            context_lines = [
-                {
-                    'line_number': i + 1,
-                    'code': code_lines[i] if i < len(code_lines) else '',
-                    'is_error': (i + 1 == line_no)
-                }
-                for i in range(start, end)
-            ]
-            
-            stack.append({
-                'line': line_no,
-                'function': frame.f_code.co_name,
-                'code_context': context_lines,
-                'variables': self._capture_frame_variables(frame)
-            })
-            
-            tb = tb.tb_next
-        
-        return stack
-    
-    def _build_execution_context(
-        self,
-        code: str,
-        error_line: Optional[int],
-        variables: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Build human-readable execution context for AI analysis."""
-        if not error_line:
-            return {}
-        
-        code_lines = code.split('\n')
-        if error_line > len(code_lines):
-            return {}
-        
-        error_code = code_lines[error_line - 1].strip()
-        
-        context = {
-            'error_line_number': error_line,
-            'error_line_code': error_code,
-            'variables_in_scope': len(variables),
-            'analysis': self._analyze_error_context(error_code, variables)
-        }
-        
-        return context
-    
-    def _analyze_error_context(
-        self,
-        error_code: str,
-        variables: Dict[str, Any]
-    ) -> List[str]:
-        """Analyze error context for common patterns."""
-        analysis = []
-        
-        # IndexError/list access analysis
-        if '[' in error_code and ']' in error_code:
-            for var_name, var_data in variables.items():
-                if var_data['type'] in ('list', 'tuple', 'str'):
-                    length = var_data.get('metadata', {}).get('length', 0)
-                    analysis.append(
-                        f"Variable '{var_name}' is a {var_data['type']} with length {length}"
-                    )
-        
-        # KeyError/dict access analysis
-        if '[' in error_code and ('"' in error_code or "'" in error_code):
-            for var_name, var_data in variables.items():
-                if var_data['type'] == 'dict':
-                    length = var_data.get('metadata', {}).get('length', 0)
-                    analysis.append(f"Dictionary '{var_name}' has {length} keys")
-        
-        # TypeError/arithmetic analysis
-        if any(op in error_code for op in ['+', '-', '*', '/', '%']):
-            for var_name, var_data in variables.items():
-                analysis.append(f"Variable '{var_name}' has type {var_data['type']}")
-        
-        return analysis
-    
     # ==================== Legacy Compatibility ====================
     
     def _to_trace_dict(self, result: ExecutionResult, code: str) -> Dict[str, Any]:
-        """Convert ExecutionResult to legacy trace dict format."""
+        """Convert to legacy trace dict format."""
         trace_dict = {
             'success': result.success,
             'stdout': result.output or '',
@@ -555,7 +411,6 @@ class DebuggerService(CodeExecutor):
             'execution_context': {}
         }
         
-        # Add traced variables
         if result.success:
             trace_dict['variables_at_end'] = result.variables or {}
         
