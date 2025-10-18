@@ -340,39 +340,60 @@ email = user.get("email", "no-email@example.com")  # Safe access
 
 ## 🏗️ Architecture
 
-### System Overview
+### Layered Architecture (Extensible by Design)
 
 ```
-┌─────────────┐
-│  User Code  │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────┐
-│ GeminiService   │ ◄─── Gemini 2.0 API
-│ (AI Orchestrator)│
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌─────────┐ ┌──────────────┐
-│ Tools   │ │ Memory       │
-│ Service │ │ Service (RAG)│
-└────┬────┘ └──────────────┘
-     │           │
-     ▼           ▼
-┌──────────┐ ┌──────────┐
-│Debugger  │ │ChromaDB  │
-│Service   │ │Vector DB │
-└──────────┘ └──────────┘
-     │
-     ▼
-┌─────────────────┐
-│ Fixed Code +    │
-│ Explanation     │
-└─────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 1: API & Routing (FastAPI)                       │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│ Layer 2: Orchestration (AutoFixService)                │
+│ ✅ Strategy pattern (Gemini vs Fallback)              │
+│ ⏳ Can add: Cache strategy, Multi-AI strategy          │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│ Layer 3: Fixers (implements CodeFixer ABC)             │
+│ ✅ GeminiService (AI-powered)                          │
+│ ✅ FallbackService (rule-based)                        │
+│ ⏳ CacheService (planned)                              │
+│ ⏳ MultiAIService (planned - Claude, GPT-4)            │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│ Layer 4: Tools (ToolsService)                          │
+│ ✅ validate_syntax, execute_code, search_memory       │
+│ ⏳ refactor_style, check_security (planned)           │
+│ ⏳ read_file, install_package (planned)               │
+│ ⏳ web_search (Bright Data MCP - planned)             │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│ Layer 5: Execution (implements CodeExecutor ABC)       │
+│ ✅ DebuggerService (RestrictedPython)                  │
+│ ⏳ DockerExecutor (full isolation - planned)           │
+│ ⏳ WASMExecutor (browser-safe - planned)               │
+└─────────────────────────────────────────────────────────┘
 ```
+
+### Why This Architecture?
+
+#### 🚀 Easy to Extend
+1. **New Tools**: Add method to ToolsService
+2. **New Executors**: Implement CodeExecutor ABC
+3. **New Fixers**: Implement CodeFixer ABC
+4. **New Strategies**: Extend AutoFixService
+
+#### ✅ Already Supports
+- Variable tracing (`execute_with_trace` exists)
+- Multi-strategy fixing (Strategy pattern)
+- Tool extensibility (ABC interfaces)
+- Safe execution (RestrictedPython)
+- Graceful degradation (Fallback)
+
+#### 🔮 Phase 2 Ready
+All planned features can be added **without** changing core architecture!
 
 ### Core Components
 
@@ -549,24 +570,78 @@ CHROMA_PERSIST_DIR=./chroma_db
 
 ## 🗺️ Roadmap
 
-### v2.4.0 (Current - January 2025)
+### v2.4.0 (Current - January 2025) ✅
 - ✅ Contextual debugging with variable tracing
 - ✅ Gemini 2.0 function calling integration
 - ✅ RAG-powered knowledge base (ChromaDB)
 - ✅ Production-ready security (.env configuration)
 - ✅ Enhanced test suite with context validation
+- ✅ Extensible architecture with ABC interfaces
 
-### v2.5.0 (Q2 2025)
-- 🔄 Multi-file error analysis
-- 🔄 Interactive debugging mode
-- 🔄 Custom knowledge base training
-- 🔄 VSCode extension integration
+### Phase 2: Enhanced Debugging (Q1 2026)
 
-### v3.0.0 (Q3 2025)
+#### 1. 🔍 Advanced Variable State Tracing
+**Status**: Foundation implemented (`execute_with_trace`)
+
+**Planned Enhancements**:
+- Variable value capture at each execution step
+- Variable state evolution timeline
+- AI-powered variable change analysis
+- Root cause explanation for variable-related errors
+
+**Example Output**:
+```
+Error: IndexError at line 15
+Variables at error:
+  data_points: [1, 2, 3] (length: 3)
+  index: 5 (out of bounds!)
+
+AI Explanation: "Attempted to access index 5 in a list of length 3.
+Fixed by using len(data_points)-1 for last element access."
+```
+
+#### 2. 📊 Proactive Code Quality Analysis
+**New Tools**:
+- `refactor_code_style`: Pylint/Black integration
+- `check_security_vulnerabilities`: Security pattern detection
+- `optimize_performance`: Performance improvement suggestions
+
+**Features**:
+- Pre-execution code review
+- Style consistency enforcement
+- Security vulnerability detection
+- Performance bottleneck identification
+
+#### 3. 🗂️ Project-Level Context Awareness
+**New Tools**:
+- `read_project_file`: Access related files for context
+- `analyze_imports`: Dependency graph analysis
+- `install_dependency`: Auto-install missing packages
+
+**Features**:
+- Multi-file error resolution
+- Automatic import error fixing
+- Environment setup automation
+- Configuration validation
+
+#### 4. 🌐 Web Research Integration
+**Bright Data MCP Integration**:
+- Real-time documentation fetching
+- Online solution search
+- Similar error pattern discovery
+- Best practices retrieval
+
+**Use Cases**:
+- "How to fix this pandas error?"
+- "Latest syntax for this library"
+- "Common solutions for this pattern"
+
+### v3.0.0 (Q3 2026)
 - 🌐 Web-based debugging interface
 - 👥 Team collaboration features
-- 🔌 Plugin system for custom handlers
+- 🔌 Plugin marketplace
 - 📊 Advanced metrics dashboard
+- 🐳 Docker/WASM execution environments
 
 ---
 

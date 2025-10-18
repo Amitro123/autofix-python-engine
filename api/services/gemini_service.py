@@ -71,32 +71,28 @@ class GeminiService(CodeFixer):
         self.chat = self._start_new_chat()
         
         logger.info(f"✅ Gemini ready with model: {GEMINI_MODEL}")
+
     
     def _start_new_chat(self):
-        """
-        Start a new chat session with system instructions and tools.
-        
-        Returns:
-            Chat object configured with model, system instructions, and tools
-        """
-        # Get tool declarations
+        """Start new chat session."""
         tools = self.tools_service.get_tool_declarations()
         
-        # Create configuration with system instruction
         config = types.GenerateContentConfig(
             temperature=0.1,
             system_instruction=self.SYSTEM_INSTRUCTION,
             tools=[tools] if tools else None
         )
         
-        # Create new chat session
         chat = self.client.chats.create(
             model=GEMINI_MODEL,
             config=config
         )
         
+        # ✅ Good place to add logging/validation
         logger.info(f"Started new chat session with {GEMINI_MODEL}")
+        
         return chat
+
     
     def is_enabled(self) -> bool:
         """
@@ -105,10 +101,7 @@ class GeminiService(CodeFixer):
         Returns:
             True if client is initialized, False otherwise
         """
-        try:
-            return self.client is not None
-        except AttributeError:
-            return False
+        return hasattr(self, 'client') and self.client is not None
     
     def fix_code(self, code: str, auto_install: bool = False) -> FixResult:
         """
