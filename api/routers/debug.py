@@ -162,3 +162,55 @@ async def debug_health(
             "modes": ["simple", "traced"]
         }
     }
+
+@router.post("/api/v1/debug/track")
+async def track_execution(
+    request: ExecuteRequest,
+    debugger_service: DebuggerService = Depends(get_debugger_service)
+):
+    """
+    Execute code with detailed variable tracking.
+    
+    Returns:
+    - Line-by-line variable snapshots
+    - Variable change history
+    - Visual timeline data
+    
+    Example:
+    ```
+    POST /api/v1/debug/track
+    {
+        "code": "x = 10\\nx = x + 5\\nprint(x)"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "tracking": {
+            "snapshots": [
+                {"line": 1, "variable": "x", "value": "10"},
+                {"line": 2, "variable": "x", "value": "15"}
+            ],
+            "changes": [
+                {"line": 2, "variable": "x", "old": "10", "new": "15"}
+            ]
+        }
+    }
+    ```
+    """
+    try:
+        result = debugger_service.execute_with_tracking(
+            code=request.code,
+            timeout=request.timeout
+        )
+        return result
+    
+    except Exception as e:
+        logger.error(f"Tracking error: {e}", exc_info=True)
+        return {
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }
+
+    

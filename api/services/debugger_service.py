@@ -1,9 +1,10 @@
 """
-Refactored DebuggerService with Jules' improvements
+Refactored DebuggerService with Jules' improvements + Variable Tracking
 Complete working version with output capture fixed
 """
 
 from autofix.core.base import CodeExecutor, ExecutionResult
+from api.services.variable_tracker import VariableTracker
 from RestrictedPython import compile_restricted, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
 from enum import Enum
@@ -54,6 +55,91 @@ class DebuggerService(CodeExecutor):
         self.last_execution = trace_dict
         return trace_dict
     
+    def execute_with_tracking(self, code: str, timeout: int = 5) -> Dict:
+        """
+        Execute code with line-by-line variable tracking.
+        
+        Returns detailed history of all variable changes.
+        """
+        self.logger.info(f"🔍 Tracking execution (timeout={timeout}s)")
+        
+        # Validate syntax first
+        validation = self.validate_syntax(code)
+        if not validation['valid']:
+            return {
+                'success': False,
+                'error': validation['error'],
+                'error_type': 'SyntaxError',
+                'tracking': {'snapshots': [], 'changes': [], 'summary': {}}
+            }
+        
+        # Prepare execution environment
+        globals_dict = self._get_safe_globals()
+        locals_dict = {}
+        tracker = VariableTracker()
+        output_lines = []
+        
+        
+        def captured_print(*args, **kwargs):
+            """Capture print calls."""
+            sep = kwargs.get('sep', ' ')
+            end = kwargs.get('end', '\n')
+            line = sep.join(str(arg) for arg in args) + end
+            output_lines.append(line)
+        
+        globals_dict['__builtins__']['print'] = captured_print
+        
+        # Split code into lines
+        lines = code.strip().split('\n')
+        
+        try:
+            # Execute line by line
+            for i, line in enumerate(lines, start=1):
+                if not line.strip():
+                    continue  # Skip empty lines
+                
+                # Compile and execute single line
+                try:
+                    compiled = compile(line, '<tracking>', 'exec')
+                    exec(compiled, globals_dict, locals_dict)
+                except SyntaxError as e:
+                    # Handle multi-line statements (like if/for)
+                    self.logger.warning(f"Line {i}: Multi-line statement detected")
+                    continue
+                
+                # Track variables after this line
+                tracker.track_line(i, locals_dict)
+            
+            output = ''.join(output_lines)
+            self.logger.info(f"✅ Tracked {len(tracker.snapshots)} snapshots, "
+                           f"{len(tracker.changes)} changes")
+            
+            return {
+                'success': True,
+                'output': output,
+                'tracking': tracker.to_dict(),
+                'final_variables': {
+                    k: str(v) for k, v in locals_dict.items()
+                    if not k.startswith('_')
+                }
+            }
+        
+        except Exception as e:
+            output = ''.join(output_lines)
+            self.logger.warning(f"❌ Tracking error: {type(e).__name__}: {e}")
+            
+            return {
+                'success': False,
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'output': output,
+                'tracking': tracker.to_dict(),  # Include partial tracking!
+                'variables_at_error': {
+                    k: str(v) for k, v in locals_dict.items()
+                    if not k.startswith('_')
+                }
+            }
+    
     def get_last_execution(self) -> Optional[Dict[str, Any]]:
         return self.last_execution
     
@@ -91,7 +177,7 @@ class DebuggerService(CodeExecutor):
         globals_dict = self._get_safe_globals()
         locals_dict = {}
         output_capture = io.StringIO()
-        
+
         # Execute with appropriate strategy
         if config.mode == ExecutionMode.TRACED:
             result = self._execute_traced(compiled['code'], globals_dict, locals_dict, 
@@ -129,6 +215,8 @@ class DebuggerService(CodeExecutor):
             try:
                 exec(code, globals_dict, locals_dict)
                 result_data['success'] = True
+            except SystemExit as e:
+                result_data['success'] = True
             except Exception as e:
                 result_data['error'] = str(e)
                 result_data['error_type'] = type(e).__name__
@@ -156,7 +244,7 @@ class DebuggerService(CodeExecutor):
             return ExecutionResult(
                 success=True,
                 output=output,
-                variables=captured_vars  # ← Capture on success
+                variables=captured_vars
             )
         else:
             self.logger.warning(f"❌ {result_data['error_type']}: {result_data['error']}")
@@ -165,8 +253,7 @@ class DebuggerService(CodeExecutor):
                 error=result_data['error'],
                 error_type=result_data['error_type'] or 'RuntimeError',
                 output=output,
-                variables=captured_vars  # ← ALSO capture on error!
-            
+                variables=captured_vars
             )
         
     def _execute_traced(self, code, globals_dict, locals_dict, output_capture, config, original_code):
@@ -212,7 +299,6 @@ class DebuggerService(CodeExecutor):
         finally:
             # Always restore original print
             builtins.print = original_print
-
     
     # ==================== Error Context Capture (Jules' Suggestion) ====================
     
@@ -322,7 +408,7 @@ class DebuggerService(CodeExecutor):
     def _handle_timeout(self, thread, thread_id, output_capture, timeout):
         """
         Handle timeout with forced termination.
-
+        
         TODO: This is not a foolproof way to terminate a thread. A more robust
               solution would be to run the code in a separate process.
         """
