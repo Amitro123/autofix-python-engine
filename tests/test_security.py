@@ -31,4 +31,4 @@ def test_sandbox_prevents_unsafe_attribute_access(debugger_service):
     malicious_code = "().__class__"
     result = debugger_service.execute_with_trace(malicious_code)
     assert not result['success']
-    assert result['error_type'] == 'SyntaxError'
+    assert result['error_type'] == 'CompilationError'
