@@ -10,7 +10,7 @@ import os
 
 from api.services.debugger_service import DebuggerService
 from api.services.tools_service import ToolsService
-from api.services.autofix_service import GeminiService, AutoFixService
+from api.services.gemini_service import GeminiService, AutoFixService
 from autofix.helpers.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 # Singleton instances (lazy loaded)
 _autofix_service: Optional[GeminiService] = None
 _gemini_service: Optional[GeminiService] = None
+_debugger_service: Optional[DebuggerService] = None
 
 
 @lru_cache()
@@ -33,12 +34,17 @@ def get_tools_service() -> ToolsService:
     # ToolsService parameters are optional (None by default)
     return ToolsService()
 
+
+@lru_cache()
 def get_debugger_service() -> DebuggerService:
     """Get or create DebuggerService singleton."""
-    logger.info("Initializing DebuggerService")
-    debugger = DebuggerService()
-    logger.info("✅ DebuggerService initialized")
-    return debugger
+    global _debugger_service
+    if _debugger_service is None:
+        logger.info("Initializing DebuggerService")
+        _debugger_service = DebuggerService()
+        logger.info("✅ DebuggerService initialized")
+    return _debugger_service
+
 
 def get_autofix_service() -> Optional[GeminiService]:
     """
@@ -106,16 +112,18 @@ def reset_services():
     Reset all service singletons.
     Useful for testing and reloading.
     """
-    global _autofix_service, _gemini_service
+    global _autofix_service, _gemini_service, _debugger_service
     
     logger.info("Resetting all service singletons")
     
     # Clear cached functions
     get_tools_service.cache_clear()
+    get_debugger_service.cache_clear()
     
     # Reset global instances
     _autofix_service = None
     _gemini_service = None
+    _debugger_service = None
     
     logger.info("All services reset")
 

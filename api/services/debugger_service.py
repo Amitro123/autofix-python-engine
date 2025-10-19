@@ -294,7 +294,6 @@ class DebuggerService(CodeExecutor):
                 '_print_': PrintCollector,
                 '_getattr_': getattr,
                 '_write_': lambda x: x,
-                '_getiter_': lambda x: iter(x),
                 '_getitem_': lambda obj, index: obj[index],
                 # Add commonly needed builtins
                 'sum': sum,           
@@ -321,7 +320,12 @@ class DebuggerService(CodeExecutor):
         }
     
     def _handle_timeout(self, thread, thread_id, output_capture, timeout):
-        """Handle timeout with forced termination."""
+        """
+        Handle timeout with forced termination.
+
+        TODO: This is not a foolproof way to terminate a thread. A more robust
+              solution would be to run the code in a separate process.
+        """
         self.logger.warning(f"⏱️ Timeout after {timeout}s - forcing termination")
         
         if thread_id:

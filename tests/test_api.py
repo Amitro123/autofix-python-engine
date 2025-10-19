@@ -88,3 +88,75 @@ def test_firebase_status():
 def test_firebase_metrics():
     response = client.get("/api/v1/firebase-metrics")
     assert response.status_code == 200
+
+
+class TestDebugAPI:
+    """Tests for the /api/v1/debug endpoints."""
+
+    def test_debug_health(self):
+        """Test the health check endpoint for the debug service."""
+        response = client.get("/api/v1/debug/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert data["service"] == "DebuggerService"
+
+    def test_execute_code_success(self):
+        """Test successful code execution."""
+        response = client.post(
+            "/api/v1/debug/execute",
+            json={"code": "x = 10\ny = 20\nprint(x + y)"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "30" in data["output"]
+        assert "variables" in data
+        assert "x" in data["variables"]
+
+    def test_execute_code_error(self):
+        """Test code execution that results in an error."""
+        response = client.post(
+            "/api/v1/debug/execute",
+            json={"code": "print(1 / 0)"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["error_type"] == "ZeroDivisionError"
+
+    def test_trace_code_success(self):
+        """Test successful code tracing."""
+        response = client.post(
+            "/api/v1/debug/trace",
+            json={"code": "a = 1\nb = 2\nc=a+b"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "c" in data["variables_at_end"]
+        assert data["variables_at_end"]["c"]["value"] == 3
+
+    def test_last_execution_workflow(self):
+        """Test the get and clear last execution endpoints."""
+        # First, run a trace to create a "last execution"
+        client.post(
+            "/api/v1/debug/trace",
+            json={"code": "x = 'test'"}
+        )
+
+        # Now, get the last execution
+        response_get = client.get("/api/v1/debug/last-execution")
+        assert response_get.status_code == 200
+        data_get = response_get.json()
+        assert data_get["success"] is True
+        assert "x" in data_get["variables_at_end"]
+
+        # Delete the last execution
+        response_delete = client.delete("/api/v1/debug/last-execution")
+        assert response_delete.status_code == 200
+        assert response_delete.json()["message"] == "Last execution cleared"
+
+        # Verify it's gone
+        response_get_after_delete = client.get("/api/v1/debug/last-execution")
+        assert response_get_after_delete.status_code == 404

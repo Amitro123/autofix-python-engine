@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from api.services.autofix_service import GeminiService, AutoFixService, GEMINI_MODEL
+from api.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
 from api.services.tools_service import ToolsService
 from autofix.helpers.logging_utils import get_logger
 import time
@@ -14,8 +14,6 @@ from api.dependencies import (
     get_gemini_service,
     get_firestore_client
 )
-from api.services.gemini_service import GeminiService
-GEMINI_MODEL = "gemini-2.0-flash-exp"
 
 
 router = APIRouter(
