@@ -163,7 +163,7 @@ async def debug_health(
         }
     }
 
-@router.post("/api/v1/debug/track")
+@router.post("/track")
 async def track_execution(
     request: ExecuteRequest,
     debugger_service: DebuggerService = Depends(get_debugger_service)
