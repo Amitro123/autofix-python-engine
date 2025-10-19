@@ -192,7 +192,7 @@ class ToolsService:
         Returns:
             List of tool declarations for Gemini
         """
-        from google.genai.types import FunctionDeclaration, Tool
+        from google.genai.types import FunctionDeclaration, Tool, Schema, Type
         
         # Define function declarations
         execute_code_func = FunctionDeclaration(
@@ -203,20 +203,20 @@ class ToolsService:
                 "Returns stdout, stderr, exit code, and execution time. "
                 "Timeout: 5 seconds by default."
             ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "Python code to execute"
-                    },
-                    "timeout": {
-                        "type": "integer",
-                        "description": "Optional timeout in seconds (default: 5)"
-                    }
+            parameters=Schema(
+                type=Type.OBJECT,
+                properties={
+                    "code": Schema(
+                        type=Type.STRING,
+                        description="Python code to execute"
+                    ),
+                    "timeout": Schema(
+                        type=Type.INTEGER,
+                        description="Optional timeout in seconds (default: 5)"
+                    )
                 },
-                "required": ["code"]
-            }
+                required=["code"]
+            )
         )
         
         validate_syntax_func = FunctionDeclaration(
@@ -226,16 +226,16 @@ class ToolsService:
                 "Use this to check for syntax errors before attempting execution. "
                 "Returns validation status, error details including line number and message if invalid."
             ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "Python code to validate"
-                    }
+            parameters=Schema(
+                type=Type.OBJECT,
+                properties={
+                    "code": Schema(
+                        type=Type.STRING,
+                        description="Python code to validate"
+                    )
                 },
-                "required": ["code"]
-            }
+                required=["code"]
+            )
         )
         
         search_memory_func = FunctionDeclaration(
@@ -246,24 +246,24 @@ class ToolsService:
                 "Stack Overflow, documentation, and Reddit. "
                 "Returns up to k similar fixes with their code and solutions."
             ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "error_type": {
-                        "type": "string",
-                        "description": "Type of error (e.g., 'IndexError', 'TypeError', 'KeyError')"
-                    },
-                    "code": {
-                        "type": "string",
-                        "description": "Optional code snippet for similarity matching"
-                    },
-                    "k": {
-                        "type": "integer",
-                        "description": "Number of results to return (default: 3)"
-                    }
+            parameters=Schema(
+                type=Type.OBJECT,
+                properties={
+                    "error_type": Schema(
+                        type=Type.STRING,
+                        description="Type of error (e.g., 'IndexError', 'TypeError', 'KeyError')"
+                    ),
+                    "code": Schema(
+                        type=Type.STRING,
+                        description="Optional code snippet for similarity matching"
+                    ),
+                    "k": Schema(
+                        type=Type.INTEGER,
+                        description="Number of results to return (default: 3)"
+                    )
                 },
-                "required": ["error_type"]
-            }
+                required=["error_type"]
+            )
         )
         
         # Return as Tool object

@@ -86,6 +86,9 @@ class FallbackService:
     ) -> Dict[str, Any]:
         """Try to find similar fix in RAG memory"""
         try:
+            if not self.memory_service:
+                return {'success': False}
+            
             # Search for similar errors
             results = self.memory_service.search_similar(
                 query=f"{error_type}: {error_message}",
@@ -124,6 +127,9 @@ class FallbackService:
     ) -> Dict[str, Any]:
         """Try to find solution via web search (Phase 2)"""
         try:
+            if not self.web_search:
+                return {'success': False}
+            
             # Search StackOverflow, docs, etc.
             search_results = self.web_search.search(
                 query=f"python {error_type} {error_message}",
