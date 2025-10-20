@@ -1,0 +1,38 @@
+import threading
+from api.services.variable_tracker import VariableTracker, safe_serialize
+
+def test_safe_serialize_unreprable():
+    class Bad:
+        def __repr__(self):
+            raise RuntimeError("nope")
+
+    assert safe_serialize(Bad()) == "<UNREPRABLE>"
+
+def test_safe_serialize_truncates_and_includes_hash():
+    s = "a" * 1000
+    out = safe_serialize(s, max_len=50)
+    assert "...<truncated:" in out
+    assert len(out) <= 50 + 20  # some allowance for suffix
+
+def test_tracker_caps_eviction():
+    vt = VariableTracker(max_snapshots=3, max_changes=3, thread_safe=False)
+    for i in range(5):
+        vt.track_line(i, {"x": i})
+    # only last 3 snapshots survive
+    assert len(vt.snapshots) == 3
+    assert vt.snapshots[0].line_number == 2
+
+def test_tracker_thread_safety():
+    vt = VariableTracker(max_snapshots=1000, thread_safe=True)
+    def worker(start):
+        for i in range(start, start + 50):
+            vt.track_line(i, {"x": i})
+
+    threads = [threading.Thread(target=worker, args=(i*50,)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Expect snapshots written without crashing
+    assert len(vt.snapshots) > 0

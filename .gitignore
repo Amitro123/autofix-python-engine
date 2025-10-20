@@ -87,6 +87,7 @@ firebase-credentials.json
 *-firebase-credentials.json
 # Note: Allow package.json, pyproject.toml, etc. - only block Firebase credentials
 firebase-key.json
+launch.json
 
 
 # Logs

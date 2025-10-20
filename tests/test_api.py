@@ -1,6 +1,8 @@
+from httpx import head
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app
+from api.dependencies import require_debug_enabled, require_debug_api_key 
 
 client = TestClient(app)
 
@@ -93,6 +95,32 @@ def test_firebase_metrics():
 class TestDebugAPI:
     """Tests for the /api/v1/debug endpoints."""
 
+    @pytest.fixture(autouse=True)
+    def setup_debug_auth(self):
+        """
+        Override auth dependencies for testing.
+        
+        Note: GitHub Copilot review added auth to debug endpoints.
+        Tests need to bypass this for legitimate testing purposes.
+        """
+        # Define mock functions
+        def mock_require_debug_enabled():
+            """Mock that always allows access."""
+            pass  # Do nothing - always allow
+
+        def mock_require_debug_api_key(x_debug_api_key: str = None):
+            """Mock that always allows access."""
+            pass  # Do nothing - always allow
+
+        # Apply overrides
+        app.dependency_overrides[require_debug_enabled] = mock_require_debug_enabled
+        app.dependency_overrides[require_debug_api_key] = mock_require_debug_api_key
+        
+        yield  # Run test
+        
+        # Cleanup: remove overrides after test
+        app.dependency_overrides.clear()
+
     def test_debug_health(self):
         """Test the health check endpoint for the debug service."""
         response = client.get("/api/v1/debug/health")
@@ -160,3 +188,5 @@ class TestDebugAPI:
         # Verify it's gone
         response_get_after_delete = client.get("/api/v1/debug/last-execution")
         assert response_get_after_delete.status_code == 404
+
+       

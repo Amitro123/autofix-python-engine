@@ -7,7 +7,7 @@ Addresses Jules Code Review P1 - Dependency Injection.
 from functools import lru_cache
 from typing import Optional
 import os
-
+from fastapi import HTTPException, Header, status
 from api.services.debugger_service import DebuggerService
 from api.services.tools_service import ToolsService
 from api.services.gemini_service import GeminiService, AutoFixService
@@ -169,3 +169,92 @@ def get_firestore_client():
     except Exception as e:
         logger.error(f"❌ Failed to initialize Firestore: {e}", exc_info=True)
         return None
+
+
+# ==================== Debug Auth Dependencies ====================
+# Added for GitHub Copilot security review - Secure debug endpoints
+
+
+def _env_flag_true(var_name: str) -> bool:
+    """Check if environment variable is set to true."""
+    v = os.getenv(var_name, "")
+    return v.lower() in ("1", "true", "yes", "on")
+
+
+def require_debug_enabled() -> None:
+    """
+    Dependency that checks if debug API is enabled.
+    
+    ⚠️ WARNING: Debug endpoints execute arbitrary Python code!
+    NEVER expose these in production without proper auth!
+    
+    Required env var:
+        DEBUG_API_ENABLED=true
+    
+    Raises:
+        HTTPException: 403 if debug API is not enabled
+        
+    Example:
+        @router.post("/endpoint", dependencies=[Depends(require_debug_enabled)])
+    """
+    if not _env_flag_true("DEBUG_API_ENABLED"):
+        logger.warning("⚠️ Attempted access to debug API while disabled")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Debug API is disabled. Set DEBUG_API_ENABLED=true to enable."
+        )
+    logger.debug("✅ Debug API enabled check passed")
+
+
+def require_debug_api_key(
+    x_debug_api_key: Optional[str] = Header(None, alias="X-Debug-API-Key")
+) -> None:
+    """
+    Dependency that validates debug API key.
+    
+    Requires X-Debug-API-Key header with valid key.
+    Fail-safe: denies access if key not configured.
+    
+    Required env var:
+        DEBUG_API_KEY=<your-secret-key>
+    
+    Args:
+        x_debug_api_key: API key from X-Debug-API-Key header
+        
+    Raises:
+        HTTPException: 403 if key is missing, not configured, or invalid
+        
+    Example:
+        @router.post("/endpoint", dependencies=[Depends(require_debug_api_key)])
+        
+    Usage:
+        curl -H "X-Debug-API-Key: your-key" http://localhost:8000/api/v1/debug/execute
+    """
+    expected_key = os.getenv("DEBUG_API_KEY", "")
+    
+    # Fail-safe: require key to be configured
+    if not expected_key:
+        logger.error("❌ DEBUG_API_KEY not configured but debug API is enabled!")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Debug API key not configured. Set DEBUG_API_KEY environment variable."
+        )
+    
+    # Check if key was provided
+    if not x_debug_api_key:
+        logger.warning("⚠️ Debug API access attempted without API key")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing X-Debug-API-Key header. Include API key in request."
+        )
+    
+    # Verify key matches
+    if x_debug_api_key != expected_key:
+        logger.warning(f"⚠️ Invalid debug API key attempted (first 8 chars: {x_debug_api_key[:8]}...)")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+    
+    # Success - log for audit trail
+    logger.info("✅ Debug API access granted with valid key")
