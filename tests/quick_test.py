@@ -1,5 +1,6 @@
 # quick_test.py
-from api.services.analyzers import PylintAnalyzer
+from autofix_core.infrastructure.analyzers.pylint_analyzer import PylintAnalyzer
+
 
 analyzer = PylintAnalyzer()
 result = analyzer.analyze("x=1\nif x==1:\n    print(x)")

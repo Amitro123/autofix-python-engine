@@ -16,6 +16,11 @@ import shutil
 import os
 import logging
 import re
+from autofix_core.application.interfaces.analyzer_interface import AnalyzerInterface
+from autofix_core.domain.entities.analysis_result import AnalysisResult
+from autofix_core.domain.entities.code_issue import CodeIssue
+from autofix_core.domain.value_objects.severity import Severity
+from autofix_core.domain.value_objects.error_type import ErrorType
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ class PylintIssue:
         }
 
 
-class PylintAnalyzer:
+class PylintAnalyzer(AnalyzerInterface):
     """
     Wrapper around Pylint for code analysis.
 
@@ -226,3 +231,30 @@ class PylintAnalyzer:
     def _default_config(self) -> Dict:
         """Default Pylint configuration."""
         return {"max_line_length": 120, "disable": ["missing-module-docstring", "invalid-name"]}
+
+
+
+if __name__ == "__main__":
+    # Test the analyzer
+    analyzer = PylintAnalyzer()
+    
+    test_code = """
+def calculate_sum(a, b):
+    result = a + b
+    return result
+
+x = calculate_sum(5, 7)
+print(x)
+"""
+    
+    print("Testing Pylint Analyzer...")
+    print(f"Pylint available: {analyzer.available}")
+    
+    if analyzer.available:
+        result = analyzer.analyze(test_code)
+        print(f"\nScore: {result.get('score')}")
+        print(f"Grade: {result.get('grade')}")
+        print(f"Total issues: {result.get('total_issues')}")
+        print(f"\nIssues: {result.get('issues')}")
+    else:
+        print("\nPylint not installed. Install with: pip install pylint")

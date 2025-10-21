@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
 from api.services.tools_service import ToolsService
+import datetime
+
 
 router = APIRouter(prefix="/api/v1/quality", tags=["code-quality"])
 tools_service = ToolsService()
@@ -17,8 +19,17 @@ tools_service = ToolsService()
 
 class CodeAnalysisRequest(BaseModel):
     """Request model for code analysis."""
-    code: str = Field(..., description="Python code to analyze")
-    filename: Optional[str] = Field(None, description="Optional filename for context")
+    code: str = Field(
+        ..., 
+        description="Python code to analyze",
+        min_length=1,
+        max_length=100000
+    )
+    filename: Optional[str] = Field(
+        None, 
+        description="Optional filename for context"
+    )
+
 
 
 class SecurityAnalysisResponse(BaseModel):
@@ -74,10 +85,22 @@ async def analyze_security(request: CodeAnalysisRequest):
     try:
         result = tools_service.analyze_security(request.code)
         return SecurityAnalysisResponse(**result)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "Bandit is not installed",
+                "hint": "Install with: pip install bandit",
+                "docs": "https://bandit.readthedocs.io/"
+            }
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Security analysis failed: {str(e)}"
+            detail={
+                "error": f"Security analysis failed: {str(e)}",
+                "hint": "Check if code is valid Python syntax"
+            }
         )
 
 
@@ -88,40 +111,26 @@ async def analyze_security(request: CodeAnalysisRequest):
     description="Analyze code complexity and maintainability using Radon"
 )
 async def analyze_complexity(request: CodeAnalysisRequest):
-    """
-    Run Radon complexity analyzer on Python code.
-    
-    Computes:
-    - Maintainability Index (MI): 0-100 scale
-      * 100-20: Grade A (excellent)
-      * 20-10: Grade B (good)
-      * 10-0: Grade C (acceptable)
-      * < 0: Grade F (poor)
-    
-    - Cyclomatic Complexity (CC) per function:
-      * CC 1-10: Simple, easy to test
-      * CC 11-15: Moderate complexity (WARNING)
-      * CC 16-20: High complexity (ERROR)
-      * CC > 20: Very high complexity (CRITICAL)
-    
-    Example:
-        ```
-        POST /api/v1/quality/complexity
-        {
-            "code": "def complex_function(a, b, c):\\n    if a:\\n        if b:\\n            return c"
-        }
-        ```
-    
-    Returns:
-        ComplexityAnalysisResponse with MI score, grade, and complexity issues
-    """
+    """..."""
     try:
         result = tools_service.analyze_complexity(request.code)
         return ComplexityAnalysisResponse(**result)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "Radon is not installed",
+                "hint": "Install with: pip install radon",
+                "docs": "https://radon.readthedocs.io/"
+            }
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Complexity analysis failed: {str(e)}"
+            detail={
+                "error": f"Complexity analysis failed: {str(e)}",
+                "hint": "Check if code is valid Python syntax"
+            }
         )
 
 
@@ -182,3 +191,93 @@ async def list_analyzers():
         ],
         "total_analyzers": 3
     }
+
+@router.get(
+    "/health",
+    summary="Health Check",
+    description="Check availability of quality analysis tools"
+)
+
+async def quality_health():
+    """
+    Check health status of quality analyzers.
+    
+    Returns availability status for:
+    - Bandit (security scanner)
+    - Radon (complexity analyzer)
+    
+    Useful for monitoring and service health checks.
+    """
+    import importlib.util
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+        "analyzers": {
+            "bandit": {
+                "available": importlib.util.find_spec("bandit") is not None,
+                "type": "security",
+                "checks": 30 if importlib.util.find_spec("bandit") else 0
+            },
+            "radon": {
+                "available": importlib.util.find_spec("radon") is not None,
+                "type": "complexity",
+                "metrics": ["MI", "CC", "Halstead"] if importlib.util.find_spec("radon") else []
+            }
+        },
+        "api_version": "2.7.0"
+    }
+
+
+@router.get(
+    "/stats",
+    summary="Analysis Statistics",
+    description="Get statistics about available analysis capabilities"
+)
+async def quality_stats():
+    """
+    Get detailed statistics about quality analysis capabilities.
+    
+    Returns:
+    - Number of available analyzers
+    - Total security checks
+    - Total complexity metrics
+    - Supported Python versions
+    """
+    import sys
+    import importlib.util
+    
+    has_bandit = importlib.util.find_spec("bandit") is not None
+    has_radon = importlib.util.find_spec("radon") is not None
+    
+    return {
+        "analyzers": {
+            "total": 3,  # pylint, bandit, radon
+            "code_quality": 1,  # pylint
+            "security": 1 if has_bandit else 0,
+            "complexity": 1 if has_radon else 0
+        },
+        "capabilities": {
+            "security_checks": 30 if has_bandit else 0,
+            "security_categories": [
+                "hardcoded_secrets",
+                "sql_injection",
+                "command_injection",
+                "insecure_functions",
+                "ssl_tls",
+                "weak_crypto"
+            ] if has_bandit else [],
+            "complexity_metrics": [
+                "maintainability_index",
+                "cyclomatic_complexity",
+                "halstead_volume",
+                "halstead_difficulty"
+            ] if has_radon else [],
+            "grade_scale": "A (excellent) to F (poor)" if has_radon else None
+        },
+        "environment": {
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "platform": sys.platform
+        }
+    }
+

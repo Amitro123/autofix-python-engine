@@ -3,7 +3,7 @@
 """Tests for PylintAnalyzer."""
 
 import pytest
-from api.services.analyzers import PylintAnalyzer
+from autofix_core.infrastructure.analyzers.pylint_analyzer import PylintAnalyzer
 from unittest.mock import patch, MagicMock
 import subprocess
 
@@ -136,7 +136,7 @@ def test_pylint_timeout(monkeypatch):
     
     # Mock subprocess.run to raise TimeoutExpired
     monkeypatch.setattr(
-        "api.services.analyzers.pylint_analyzer.subprocess.run", 
+        "autofix_core.infrastructure.analyzers.pylint_analyzer.subprocess.run", 
         fake_run
     )
     
@@ -160,7 +160,7 @@ def test_pylint_malformed_json(monkeypatch):
     
     # Mock subprocess.run to return fake result
     monkeypatch.setattr(
-        "api.services.analyzers.pylint_analyzer.subprocess.run",
+        "autofix_core.infrastructure.analyzers.pylint_analyzer.subprocess.run",
         lambda *args, **kwargs: fake_proc
     )
     

@@ -18,8 +18,7 @@ from .memory_service import MemoryService
 from .debugger_service import DebuggerService
 from autofix_core.infrastructure.analyzers.bandit_analyzer import BanditAnalyzer
 from autofix_core.infrastructure.analyzers.radon_analyzer import RadonAnalyzer
-from api.services.analyzers.pylint_analyzer import PylintAnalyzer
-
+from autofix_core.infrastructure.analyzers.pylint_analyzer import PylintAnalyzer
 
 logger = get_logger(__name__)
 
