@@ -16,8 +16,9 @@ from autofix.helpers.logging_utils import get_logger
 from .sandbox_executor import SandboxExecutor
 from .memory_service import MemoryService
 from .debugger_service import DebuggerService
-
-
+from autofix_core.infrastructure.analyzers.bandit_analyzer import BanditAnalyzer
+from autofix_core.infrastructure.analyzers.radon_analyzer import RadonAnalyzer
+from api.services.analyzers.pylint_analyzer import PylintAnalyzer
 
 
 logger = get_logger(__name__)
@@ -41,6 +42,9 @@ class ToolsService:
         """
  
 
+        self.pylint_analyzer = PylintAnalyzer()
+        self.bandit_analyzer = BanditAnalyzer()
+        self.radon_analyzer = RadonAnalyzer()
         self.memory_service = memory_service
         self.sandbox = sandbox_executor or SandboxExecutor()
         self.debugger = debugger_service or DebuggerService()
@@ -272,7 +276,106 @@ class ToolsService:
             validate_syntax_func,
             search_memory_func
         ])
-    
+    # ============== ANALYZERS ======================
+
+    def analyze_code_quality(self, code: str) -> dict:
+        """
+        Run code quality analysis with Pylint.
+
+        Args:
+            code: Python code to analyze
+
+        Returns:
+            dict with analyzer name, issues, counts, and severity breakdown
+        """
+        result = self.pylint_analyzer.analyze(code)
+
+        return {
+            "analyzer": result.analyzer_name,
+            "total_issues": len(result.issues),
+            "issues": [self._format_issue(issue) for issue in result.issues],
+            "severity_counts": self._count_by_severity(result.issues),
+            "timestamp": result.timestamp.isoformat()
+        }
+
+    def analyze_security(self, code: str) -> dict:
+        """
+        Run security analysis with Bandit.
+        
+        Detects 30+ security issues including:
+        - Hardcoded passwords and secrets
+        - SQL injection vulnerabilities
+        - Command injection risks
+        - Use of insecure functions
+        - SSL/TLS issues
+        - Path traversal risks
+        
+        Args:
+            code: Python code to analyze
+            
+        Returns:
+            dict with analyzer name, issues, counts, and severity breakdown
+        """
+        result = self.bandit_analyzer.analyze(code)
+        
+        return {
+            "analyzer": result.analyzer_name,
+            "total_issues": len(result.issues),
+            "issues": [self._format_issue(issue) for issue in result.issues],
+            "severity_counts": self._count_by_severity(result.issues),
+            "timestamp": result.timestamp.isoformat()
+        }
+
+    def analyze_complexity(self, code: str) -> dict:
+        """
+        Run complexity analysis with Radon.
+        
+        Computes:
+        - Maintainability Index (MI): 0-100 scale (higher is better)
+        - Grade: A (excellent) to F (poor)
+        - Cyclomatic Complexity (CC) for each function
+        
+        Args:
+            code: Python code to analyze
+            
+        Returns:
+            dict with MI score, grade, complexity issues, and details
+        """
+        result = self.radon_analyzer.analyze(code)
+        
+        return {
+            "analyzer": result.analyzer_name,
+            "maintainability_index": result.score,
+            "grade": result.grade,
+            "complexity_issues": len(result.issues),
+            "issues": [self._format_issue(issue) for issue in result.issues],
+            "timestamp": result.timestamp.isoformat()
+        }
+
+    def _format_issue(self, issue) -> dict:
+        """Convert CodeIssue to dict for API response."""
+        return {
+            "message": issue.message,
+            "line": issue.line,
+            "column": issue.column,
+            "severity": issue.severity.value,
+            "error_type": issue.error_type.value,
+            "file_path": issue.file_path
+        }
+
+    def _count_by_severity(self, issues) -> dict:
+        """Count issues by severity level."""
+        from collections import Counter
+        severities = [issue.severity.value for issue in issues]
+        counts = Counter(severities)
+        return {
+            "info": counts.get(1, 0),
+            "warning": counts.get(2, 0),
+            "error": counts.get(3, 0),
+            "critical": counts.get(4, 0)
+
+        }
+
     # ==================== Tool Execution ====================
     
     def execute_tool(self, function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,8 +1,8 @@
-"""AutoFix FastAPI Backend - v2.3.0"""
+"""AutoFix FastAPI Backend - v2.7.0"""
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from api.routers import fix, debug
+from api.routers import fix, debug, quality
 from dotenv import load_dotenv
 from autofix.helpers.logging_utils import setup_logging, get_logger
 from contextlib import asynccontextmanager
@@ -21,9 +21,10 @@ async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     # Startup
     logger.info("🚀 AutoFix API Starting...")
-    logger.info(f"📦 Version: 2.3.0")
+    logger.info(f"📦 Version: 2.7.0")
     logger.info(f"📚 Docs: http://localhost:8000/docs")
     logger.info(f"🔧 Fix API: /api/v1/fix")
+    logger.info("🔒 Quality API: /api/v1/quality")
     logger.info(f"🐛 Debug API: /api/v1/debug")
     logger.info("✅ Startup complete")
     yield
@@ -34,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AutoFix API",
     description="🔧 Automatic Python code error fixing with AI + Deep Debugging",
-    version="2.3.0",
+    version="2.7.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan  # ← Modern lifespan handling
@@ -55,6 +56,7 @@ app.add_middleware(
 # Include routers (DON'T add prefix - already in routers!)
 app.include_router(fix.router)
 app.include_router(debug.router)
+app.include_router(quality.router)
 
 
 @app.get("/", tags=["root"])
@@ -62,7 +64,7 @@ def root():
     """Root endpoint with API information."""
     return {
         "message": "🔧 AutoFix API",  # ← Simplified for tests
-        "version": "2.3.0",
+        "version": "2.7.0",
         "endpoints": {
             "docs": "/docs",
             "redoc": "/redoc",
@@ -86,7 +88,7 @@ def health():
         "status": "healthy",
         "service": "AutoFix API",
         "version": {
-            "api": "2.3.0",
+            "api": "2.7.0",
             "autofix": "1.0.0"
         },
         "components": {
