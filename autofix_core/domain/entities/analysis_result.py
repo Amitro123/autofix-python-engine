@@ -30,7 +30,7 @@ class AnalysisResult:
     grade: Optional[str] = None
     issues: Tuple[CodeIssue, ...] = field(default_factory=tuple)
     analyzer_name: str = ""
-    timestamp: datetime.datetime = field(default_factory=lambda: datetime.datetime.utcnow())
+    timestamp: datetime.datetime = field(default_factory=lambda: datetime.datetime.now(datetime.UTC))
 
     def __post_init__(self) -> None:
         # Validate score range if provided (common analyzers use 0..10 or 0..100)
@@ -38,8 +38,15 @@ class AnalysisResult:
             if not isinstance(self.score, (int, float)):
                 raise TypeError("score must be numeric or None")
             # Allow general float ranges; don't enforce exact bounds here
-            if self.score < 0:
-                raise ValueError("score must be non-negative if provided")
+            if self.score < -50 :
+                raise ValueError("score must be >= -50 if provided (maintainability index can be negative)")
+                # Validate grade if provided
+            if self.grade is not None:
+                valid_grades = {"A", "B", "C", "D", "F"}
+            if self.grade not in valid_grades:
+                raise ValueError(f"grade must be one of {valid_grades} or None")
+
+
 
         # Ensure issues is a tuple (immutable container)
         if not isinstance(self.issues, tuple):
