@@ -26,7 +26,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
 from autofix_core.shared.handlers.syntax_error_handler import create_syntax_error_handler
-from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+from autofix_core.shared.import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 
 from autofix_core.shared.handlers.key_error_handler import KeyErrorHandler
 from autofix_core.shared.helpers.spinner import spinner
@@ -35,7 +35,7 @@ from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHand
 from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 from autofix_core.shared.handlers.index_error_handler import IndexErrorHandler
 from autofix_core.shared.handlers.import_error_handler import ImportErrorHandler
-from .handlers.module_not_found_handler import (
+from autofix_core.shared.handlers.module_not_found_handler import (
     ModuleNotFoundHandler,
     ModuleValidation,
     PackageInstaller
@@ -46,7 +46,7 @@ try:
     from .constants import ErrorType
     from .core.error_parser import ErrorParser, ParsedError
     from .helpers.logging_utils import get_logger
-    from .import_suggestions import (
+    from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
         KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
     )
@@ -764,3 +764,5 @@ def {function_name}({param_str}):
         
         handler = ImportErrorHandler()
         return handler.suggest_library_import(function_name, module_name)
+
+

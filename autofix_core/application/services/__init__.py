@@ -1,7 +1,8 @@
 """
 Application Services - Orchestration and business logic.
 """
-from .gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
+
+from .gemini_service import GeminiService, GEMINI_MODEL
 from .tools_service import ToolsService
 from .debugger_service import DebuggerService
 from .memory_service import MemoryService
@@ -14,7 +15,6 @@ from .variable_tracker import VariableTracker
 
 __all__ = [
     "GeminiService",
-    "AutoFixService",
     "GEMINI_MODEL",
     "ToolsService",
     "DebuggerService",

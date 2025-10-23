@@ -85,7 +85,53 @@ class GeminiService:
 
 
     def fix_code(self, code: str, auto_install: bool = False) -> Dict[str, Any]:
-        """Fix code - wrapper for process_user_code to match API expectations."""
+        """Hybrid: Try handler first, then AI fallback"""
+        
+        import tempfile
+        import os
+        
+        # STEP 1: Try Handler (FAST & FREE!)
+        try:
+            from autofix_core.infrastructure.cli.python_fixer import PythonFixer
+            
+            # Create temp file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+                f.write(code)
+                temp_path = f.name
+            
+            try:
+                fixer = PythonFixer()
+                success = fixer.run_script_with_fixes(temp_path)  # ← FIXED!
+                
+                # Read fixed code from file
+                if os.path.exists(temp_path):
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        fixed_code = f.read()
+                else:
+                    fixed_code = code
+                
+                # Check if it worked
+                if success and fixed_code != code:
+                    logger.info("✅ Handler fixed it!")
+                    return {
+                        'success': True,
+                        'original_code': code,
+                        'fixed_code': fixed_code,
+                        'error_type': 'SyntaxError',
+                        'method': 'handler',
+                        'cache_hit': False,
+                        'changes': ['Fixed by deterministic handler'],
+                        'explanation': 'Fixed by rule-based handler'
+                    }
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    
+        except Exception as e:
+            logger.warning(f"Handler failed: {e}")
+        
+        # STEP 2: AI Fallback
+        logger.info("🤖 Using AI fallback...")
         result = self.process_user_code(code)
         
         return {
@@ -93,11 +139,12 @@ class GeminiService:
             'original_code': code,
             'fixed_code': result.get('fixed_code', code),
             'error_type': 'Unknown',
-            'method': 'gemini' if result.get('success') else 'error',
+            'method': 'gemini',
             'cache_hit': False,
             'changes': [],
             'explanation': result.get('explanation', '')
         }
+
     
     def process_user_code(self, user_code: str, max_iterations: int = 5) -> Dict[str, Any]:
         """
@@ -230,6 +277,8 @@ class GeminiService:
             }
             for msg in self.chat.history
         ]
+
+# Backward compatibility alias
 
 # Backward compatibility alias
 AutoFixService = GeminiService
