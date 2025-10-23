@@ -80,8 +80,6 @@ test_chroma_db*/
 api/services/.gemini_cache/
 
 
-
-
 # Firebase
 firebase-credentials.json
 *-firebase-credentials.json
@@ -111,3 +109,20 @@ launch.json
 # Removed these problematic rules:
 # test_*.py   ← This blocked ALL test files!
 # *_test.py   ← This too!
+
+# Reflex Dashboard
+autofix_core/infrastructure/integrations/reflex_dashboard/.web/
+autofix_core/infrastructure/integrations/reflex_dashboard/__pycache__/
+autofix_core/infrastructure/integrations/reflex_dashboard/*.db
+autofix_core/infrastructure/integrations/reflex_dashboard/assets/uploaded_files/
+
+# Reflex general
+.web/
+*.db
+uploaded_files/
+__pycache__/
+.states
+*.py[cod]
+assets/external/
+
+autofix_core/infrastructure/integrations/reflex_dashboard/.gitignore
