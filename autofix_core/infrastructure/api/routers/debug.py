@@ -5,10 +5,10 @@ Provides low-level code execution and tracing capabilities
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
-from api.dependencies import get_debugger_service
-from api.services.debugger_service import DebuggerService, ExecutionMode
+from autofix_core.infrastructure.api.dependencies import get_debugger_service
+from autofix_core.application.services.debugger_service import DebuggerService, ExecutionMode
 from autofix.helpers.logging_utils import get_logger
-from api.dependencies import (
+from autofix_core.infrastructure.api.dependencies import (
     get_debugger_service,
     require_debug_enabled,
     require_debug_api_key

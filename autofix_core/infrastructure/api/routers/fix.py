@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from api.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
-from api.services.tools_service import ToolsService
+from autofix_core.application.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
+from autofix_core.infrastructure.ai_providers.gemini_provider import GeminiProvider
+from autofix_core.application.services.tools_service import ToolsService
 from autofix.helpers.logging_utils import get_logger
 import time
 from typing import List, Optional
@@ -9,10 +10,13 @@ import subprocess
 import tempfile
 import sys
 import os
-from api.dependencies import (
+from autofix_core.infrastructure.api.dependencies import (
     get_autofix_service,
     get_gemini_service,
-    get_firestore_client
+    get_firestore_client,
+    get_tools_service,
+    get_debugger_service,
+    get_gemini_service
 )
 
 
@@ -91,7 +95,7 @@ async def validate_code(request: ValidateRequest):
 @router.post("/fix")
 async def fix_code(
     request: FixRequest,
-    autofix_service: Optional[GeminiService] = Depends(get_autofix_service)
+    autofix_service: GeminiProvider = Depends(get_autofix_service)
 ):
     """
     🔧 Fix Python code using Hybrid AI approach

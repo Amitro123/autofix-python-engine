@@ -8,18 +8,20 @@ from functools import lru_cache
 from typing import Optional
 import os
 from fastapi import HTTPException, Header, status
-from api.services.debugger_service import DebuggerService
-from api.services.tools_service import ToolsService
-from api.services.gemini_service import GeminiService, AutoFixService
+from autofix_core.application.services.debugger_service import DebuggerService
+from autofix_core.application.services.tools_service import ToolsService
+from autofix_core.infrastructure.ai_providers.gemini_provider import GeminiProvider
+from autofix_core.application.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
 from autofix.helpers.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 
 # Singleton instances (lazy loaded)
-_autofix_service: Optional[GeminiService] = None
+_autofix_service: Optional[AutoFixService] = None
 _gemini_service: Optional[GeminiService] = None
 _debugger_service: Optional[DebuggerService] = None
+
 
 
 @lru_cache()
@@ -78,7 +80,7 @@ def get_autofix_service() -> Optional[GeminiService]:
     
     return _autofix_service
 
-
+@lru_cache()
 def get_gemini_service() -> Optional[GeminiService]:
     """
     Get or create GeminiService singleton.

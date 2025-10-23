@@ -1,5 +1,5 @@
 import pytest
-from api.services.debugger_service import DebuggerService
+from autofix_core.application.services.debugger_service import DebuggerService
 
 @pytest.fixture
 def debugger_service():

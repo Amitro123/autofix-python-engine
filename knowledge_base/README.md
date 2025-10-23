@@ -13,7 +13,7 @@ knowledge_base/
 
 ## Usage
 
-from api.services.knowledge_builder import KnowledgeBuilder
+from autofix_core.application.services.knowledge_builder import KnowledgeBuilder
 
 kb = KnowledgeBuilder(memory_service)
 

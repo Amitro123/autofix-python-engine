@@ -1,5 +1,5 @@
 import threading
-from api.services.variable_tracker import VariableTracker, safe_serialize
+from autofix_core.application.services.variable_tracker import VariableTracker, safe_serialize
 
 def test_safe_serialize_unreprable():
     class Bad:

@@ -1,8 +1,8 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
-from api.services.gemini_service import GeminiService
-from api.services.tools_service import ToolsService
+from autofix_core.application.services.gemini_service import GeminiService
+from autofix_core.application.services.tools_service import ToolsService
 
 @pytest.fixture
 def mock_tools_service():

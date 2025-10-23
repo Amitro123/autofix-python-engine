@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from api.models.schemas import FixRequest, FixResponse, Change
+from autofix_core.infrastructure.api.models.schemas import FixRequest, FixResponse, Change
 
 class TestSchemas:
     """Test Pydantic schemas for API validation"""

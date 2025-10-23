@@ -4,7 +4,7 @@ Complete working version with output capture fixed
 """
 
 from autofix.core.base import CodeExecutor, ExecutionResult
-from api.services.variable_tracker import VariableTracker
+from autofix_core.application.services.variable_tracker import VariableTracker
 from RestrictedPython import compile_restricted, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
 from enum import Enum

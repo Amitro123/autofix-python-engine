@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.services.memory_service import MemoryService
-from api.services.knowledge_builder import KnowledgeBuilder
+from autofix_core.application.services.memory_service import MemoryService
+from autofix_core.application.services.knowledge_builder import KnowledgeBuilder
 import tempfile
 import shutil
 

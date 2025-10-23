@@ -287,3 +287,4 @@ if __name__ == "__main__":
     
     # Example 4: Stats
     print(f"Stats: {cache.get_stats()}")
+

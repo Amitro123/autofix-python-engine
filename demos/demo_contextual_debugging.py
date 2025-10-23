@@ -9,10 +9,10 @@ import os
 # Set API key from environment
 os.environ['GEMINI_API_KEY'] = get_api_key()
 
-from api.services.memory_service import MemoryService
-from api.services.debugger_service import DebuggerService
-from api.services.tools_service import ToolsService
-from api.services.gemini_service import GeminiService
+from autofix_core.application.services.memory_service import MemoryService
+from autofix_core.application.services.debugger_service import DebuggerService
+from autofix_core.application.services.tools_service import ToolsService
+from autofix_core.application.services.gemini_service import GeminiService
 
 print("="*80)
 print("🔬 Full Contextual Debugging Test")

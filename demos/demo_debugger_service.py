@@ -9,7 +9,7 @@ import os
 # Set API key from environment
 os.environ['GEMINI_API_KEY'] = get_api_key()
 
-from api.services.debugger_service import DebuggerService
+from autofix_core.application.services.debugger_service import DebuggerService
 import json
 
 debugger = DebuggerService()

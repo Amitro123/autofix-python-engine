@@ -1,5 +1,5 @@
 # tests/test_variable_tracking.py (NEW FILE)
-from api.services.debugger_service import DebuggerService
+from autofix_core.application.services.debugger_service import DebuggerService
 
 def test_variable_tracking_simple():
     """Test basic variable tracking."""

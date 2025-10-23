@@ -7,9 +7,9 @@ Tests verify that debug endpoints require proper authentication.
 
 import os
 from fastapi.testclient import TestClient
-from api.routers.debug import router as debug_router
+from autofix_core.infrastructure.api.routers.debug import router as debug_router
 from fastapi import FastAPI, Depends
-from api.services.debugger_service import DebuggerService
+from autofix_core.application.services.debugger_service import DebuggerService
 from unittest.mock import MagicMock
 import pytest
 
@@ -22,7 +22,7 @@ class FakeDebugger:
     
     def execute(self, code, timeout=5):
         """Fake execute - always succeeds."""
-        from api.services.debugger_service import ExecutionResult
+        from autofix_core.application.services.debugger_service import ExecutionResult
         return ExecutionResult(
             success=True,
             output="ok",
@@ -84,7 +84,7 @@ def test_debug_routes_with_valid_key(monkeypatch):
     monkeypatch.setenv("DEBUG_API_KEY", "secret")
     
     # Override dependency to return fake debugger
-    from api.dependencies import get_debugger_service
+    from autofix_core.infrastructure.api.dependencies import get_debugger_service
     app.dependency_overrides[get_debugger_service] = get_fake_debugger
     
     try:
@@ -129,7 +129,7 @@ def test_debug_router_sanitizes_exceptions(monkeypatch):
         def execute(self, *args, **kwargs):
             raise RuntimeError("internal secret: password=abcd123")
     
-    from api.dependencies import get_debugger_service
+    from autofix_core.infrastructure.api.dependencies import get_debugger_service
     app.dependency_overrides[get_debugger_service] = lambda: BadDebugger()
     
     try:

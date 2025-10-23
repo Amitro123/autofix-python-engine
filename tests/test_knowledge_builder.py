@@ -8,8 +8,8 @@ import tempfile
 import shutil
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
-from api.services.knowledge_builder import KnowledgeBuilder
-from api.services.memory_service import MemoryService
+from autofix_core.application.services.knowledge_builder import KnowledgeBuilder
+from autofix_core.application.services.memory_service import MemoryService
 
 
 @pytest.fixture

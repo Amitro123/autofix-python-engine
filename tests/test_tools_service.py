@@ -7,8 +7,8 @@ import pytest
 import tempfile
 import shutil
 from unittest.mock import Mock, patch
-from api.services.tools_service import ToolsService
-from api.services.memory_service import MemoryService
+from autofix_core.application.services.tools_service import ToolsService
+from autofix_core.application.services.memory_service import MemoryService
 
 
 @pytest.fixture

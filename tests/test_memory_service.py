@@ -7,7 +7,7 @@ import pytest
 import tempfile
 import shutil
 from unittest.mock import Mock, patch
-from api.services.memory_service import MemoryService
+from autofix_core.application.services.memory_service import MemoryService
 
 class TestMemoryServiceBasic:
     """Test basic memory service functionality"""

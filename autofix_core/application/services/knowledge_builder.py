@@ -718,3 +718,4 @@ class KnowledgeBuilder:
             'total_examples_stored': 0,
             'reddit_threads_processed': 0
         }
+

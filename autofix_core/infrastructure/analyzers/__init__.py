@@ -14,7 +14,7 @@ from autofix_core.infrastructure.analyzers.radon_analyzer import RadonAnalyzer
 
 # Show deprecation warning
 warnings.warn(
-    "Importing analyzers from api.services.analyzers is deprecated. "
+    "Importing analyzers from autofix_core.application.services.analyzers is deprecated. "
     "Use 'from autofix_core.infrastructure.analyzers import PylintAnalyzer' instead.",
     DeprecationWarning,
     stacklevel=2

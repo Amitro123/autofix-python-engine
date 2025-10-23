@@ -13,8 +13,8 @@ import os
 # Set API key from environment
 os.environ['GEMINI_API_KEY'] = get_api_key()
 
-from api.services.tools_service import ToolsService
-from api.services.gemini_service import GeminiService
+from autofix_core.application.services.tools_service import ToolsService
+from autofix_core.application.services.gemini_service import GeminiService
 
 # Create services
 print("Initializing services...")

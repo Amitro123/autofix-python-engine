@@ -210,3 +210,4 @@ class FallbackService:
             "Check Python documentation for this error",
             "Search for similar errors online"
         ])
+

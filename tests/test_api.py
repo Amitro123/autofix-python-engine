@@ -1,8 +1,8 @@
 from httpx import head
 import pytest
 from fastapi.testclient import TestClient
-from api.main import app
-from api.dependencies import require_debug_enabled, require_debug_api_key 
+from autofix_core.infrastructure.api.main import app
+from autofix_core.infrastructure.api.dependencies import require_debug_enabled, require_debug_api_key 
 
 client = TestClient(app)
 

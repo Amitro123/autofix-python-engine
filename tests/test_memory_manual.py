@@ -3,7 +3,7 @@ Manual testing script for MemoryService
 Run this interactively to test the service
 """
 
-from api.services.memory_service import MemoryService
+from autofix_core.application.services.memory_service import MemoryService
 import time
 
 def test_basic_functionality():

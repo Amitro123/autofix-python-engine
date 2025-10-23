@@ -5,7 +5,7 @@ v2.2.1 - Jules' recommendations
 import pytest
 import tempfile
 from pathlib import Path
-from api.services.gemini_cache import GeminiCache, GeminiCacheConfig
+from autofix_core.application.services.gemini_cache import GeminiCache, GeminiCacheConfig
 
 
 def test_cache_miss():
