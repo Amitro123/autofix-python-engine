@@ -12,7 +12,7 @@ import json
 import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 from .sandbox_executor import SandboxExecutor
 from .memory_service import MemoryService
 from .debugger_service import DebuggerService

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from autofix_core.application.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
 from autofix_core.infrastructure.ai_providers.gemini_provider import GeminiProvider
 from autofix_core.application.services.tools_service import ToolsService
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 import time
 from typing import List, Optional
 import subprocess
@@ -248,7 +248,7 @@ async def get_stats(
     
     # Try to get Firebase metrics (optional)
     try:
-        from autofix.integrations.firestore_client import get_firestore_client
+        from autofix_core.infrastructure.integrations.firestore_client import get_firestore_client
         client = get_firestore_client()
         
         if client:
@@ -297,7 +297,7 @@ async def check_firebase():
     """
     try:
         # Import Firebase client        
-        from autofix.integrations.firestore_client import get_firestore_client
+        from autofix_core.infrastructure.integrations.firestore_client import get_firestore_client
         # Try to get client
         client = get_firestore_client()
         
@@ -377,7 +377,7 @@ async def get_firebase_metrics():
     Returns latest 10 fix operations stored in Firestore
     """
     try:
-        from autofix.integrations.firestore_client import get_firestore_client
+        from autofix_core.infrastructure.integrations.firestore_client import get_firestore_client
         
         client = get_firestore_client()
         

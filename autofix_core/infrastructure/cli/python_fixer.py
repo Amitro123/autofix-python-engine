@@ -25,16 +25,16 @@ import time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
-from autofix.handlers.syntax_error_handler import create_syntax_error_handler
+from autofix_core.shared.handlers.syntax_error_handler import create_syntax_error_handler
 from .import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
 
-from autofix.handlers.key_error_handler import KeyErrorHandler
-from autofix.helpers.spinner import spinner
-from autofix.handlers.zero_division_handler import ZeroDivisionHandler
-from autofix.handlers.file_not_found_handler import FileNotFoundHandler
-from autofix.handlers.value_error_handler import ValueErrorHandler
-from autofix.handlers.index_error_handler import IndexErrorHandler
-from autofix.handlers.import_error_handler import ImportErrorHandler
+from autofix_core.shared.handlers.key_error_handler import KeyErrorHandler
+from autofix_core.shared.helpers.spinner import spinner
+from autofix_core.shared.handlers.zero_division_handler import ZeroDivisionHandler
+from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
+from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
+from autofix_core.shared.handlers.index_error_handler import IndexErrorHandler
+from autofix_core.shared.handlers.import_error_handler import ImportErrorHandler
 from .handlers.module_not_found_handler import (
     ModuleNotFoundHandler,
     ModuleValidation,
@@ -52,10 +52,10 @@ try:
     )
 except ImportError:
     # Fallback for direct execution
-    from autofix.constants import ErrorType
-    from autofix.core.error_parser import ErrorParser, ParsedError
-    from autofix.helpers.logging_utils import get_logger
-    from autofix.import_suggestions import (
+    from autofix_core.shared.constants import ErrorType
+    from autofix_core.shared.core.error_parser import ErrorParser, ParsedError
+    from autofix_core.shared.helpers.logging_utils import get_logger
+    from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, MULTI_IMPORT_SUGGESTIONS,
         KNOWN_PIP_PACKAGES, MATH_FUNCTIONS, MODULE_TO_PACKAGE
     )

@@ -1,7 +1,4 @@
-"""
-CLI delivery package.
+from .autofix_cli_interactive import AutoFixer, main
+from .cli_parser import create_parser
 
-CLI adapters and interactive utilities go here. They should invoke application
-use cases rather than embedding business logic.
-"""
-__all__ = []
+__all__ = ['AutoFixer', 'main', 'create_parser']

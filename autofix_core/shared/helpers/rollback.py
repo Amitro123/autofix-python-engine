@@ -7,7 +7,7 @@ from pathlib import Path
 try:
     from .logging_utils import get_logger
 except ImportError:
-    from autofix.helpers.logging_utils import get_logger
+    from autofix_core.shared.helpers.logging_utils import get_logger
 
 logger = get_logger("rollback")
 

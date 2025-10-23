@@ -1,5 +1,5 @@
 import pytest
-from autofix.handlers.type_error_handler import TypeErrorHandler
+from autofix_core.shared.handlers.type_error_handler import TypeErrorHandler
 
 class TestTypeErrorHandler:
     """Test TypeError handler functionality"""

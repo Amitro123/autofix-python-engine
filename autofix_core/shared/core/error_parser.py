@@ -18,7 +18,7 @@ try:
 except ImportError:
     # Fallback for direct execution
     from helpers.rollback import FixTransaction
-    from autofix.helpers.logging_utils import get_logger
+    from autofix_core.shared.helpers.logging_utils import get_logger
 
 
 @dataclass

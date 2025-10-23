@@ -12,7 +12,7 @@ from autofix_core.application.services.debugger_service import DebuggerService
 from autofix_core.application.services.tools_service import ToolsService
 from autofix_core.infrastructure.ai_providers.gemini_provider import GeminiProvider
 from autofix_core.application.services.gemini_service import GeminiService, AutoFixService, GEMINI_MODEL
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 
 logger = get_logger(__name__)
 

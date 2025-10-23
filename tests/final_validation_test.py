@@ -12,7 +12,7 @@ def test_core_imports():
     try:
         # ✅ Fix: AutoFixer is in CLI, not python_fixer
         from autofix.cli.autofix_cli_interactive import AutoFixer
-        from autofix.core.error_parser import ErrorParser
+        from autofix_core.shared.core.error_parser import ErrorParser
         from autofix.constants import ErrorType
         from autofix.python_fixer import PythonFixer  # ✅ If this class exists
         

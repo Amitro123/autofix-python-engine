@@ -3,7 +3,7 @@ Refactored DebuggerService with Jules' improvements + Variable Tracking
 Complete working version with output capture fixed
 """
 
-from autofix.core.base import CodeExecutor, ExecutionResult
+from autofix_core.shared.core.base import CodeExecutor, ExecutionResult
 from autofix_core.application.services.variable_tracker import VariableTracker
 from RestrictedPython import compile_restricted, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
@@ -16,7 +16,7 @@ import ctypes
 import threading
 from typing import Dict, Any, Optional, List
 from contextlib import redirect_stdout, redirect_stderr
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 
 
 class ExecutionMode(Enum):

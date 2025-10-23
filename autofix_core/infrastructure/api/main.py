@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from autofix_core.infrastructure.api.routers import fix, debug, quality
 from dotenv import load_dotenv
-from autofix.helpers.logging_utils import setup_logging, get_logger
+from autofix_core.shared.helpers.logging_utils import setup_logging, get_logger
 from contextlib import asynccontextmanager
 
 # Load environment variables

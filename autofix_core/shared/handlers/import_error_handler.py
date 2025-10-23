@@ -17,11 +17,11 @@ try:
     )
     from ..helpers.logging_utils import get_logger  # ← .. במקום ...
 except ImportError:
-    from autofix.import_suggestions import ( 
+    from autofix_core.shared.import_suggestions import ( 
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES, 
         MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
     )
-    from autofix.helpers.logging_utils import get_logger
+    from autofix_core.shared.helpers.logging_utils import get_logger
 
 
 

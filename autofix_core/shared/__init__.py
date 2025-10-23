@@ -1,7 +1,8 @@
-from .python_fixer import PythonFixer
+# autofix_core/shared/__init__.py
+"""Shared utilities and constants for AutoFix Core"""
+
 from .core.error_parser import ErrorParser, ParsedError
 from .helpers.logging_utils import setup_logging, get_logger
-from .cli.autofix_cli_interactive import main as cli_main
 from .constants import (
     ErrorType,
     SyntaxErrorSubType,
@@ -15,10 +16,8 @@ from .constants import (
 __version__ = '1.0.0'
 
 __all__ = [
-    'PythonFixer',
     'ErrorParser',
     'ParsedError',
-    'cli_main',
     'setup_logging',
     'get_logger',
     'ErrorType',

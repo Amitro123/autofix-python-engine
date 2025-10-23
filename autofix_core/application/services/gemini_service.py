@@ -9,7 +9,7 @@ import re
 import os
 from google import genai
 from google.genai import types
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 
 from .tools_service import ToolsService
 

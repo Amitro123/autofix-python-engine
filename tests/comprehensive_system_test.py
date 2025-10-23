@@ -14,7 +14,7 @@ def test_core_imports():
     """Test that all core modules can be imported"""
     try:
         from autofix.cli.autofix_cli_interactive import AutoFixer
-        from autofix.core.error_parser import ErrorParser
+        from autofix_core.shared.core.error_parser import ErrorParser
         from autofix.constants import ErrorType
         assert True  # ✅ Instead of: return True
     except ImportError as e:

@@ -8,7 +8,7 @@ from markitdown import MarkItDown
 from typing import List, Dict, Optional
 import re
 from pathlib import Path
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 
 # Optional Reddit support
 try:

@@ -4,7 +4,7 @@ Test IndexError fixing using core engine components
 """
 
 from autofix.python_fixer import PythonFixer
-from autofix.core.error_parser import ErrorParser
+from autofix_core.shared.core.error_parser import ErrorParser
 import subprocess
 import sys
 

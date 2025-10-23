@@ -1,4 +1,4 @@
-from autofix.core.base_handler import ErrorHandler
+from autofix_core.shared.core.base_handler import ErrorHandler
 from typing import Tuple, Dict
 import re
 

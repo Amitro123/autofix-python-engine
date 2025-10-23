@@ -2,8 +2,8 @@
 Quick tests for new error handlers
 """
 import pytest
-from autofix.handlers.file_not_found_handler import FileNotFoundHandler
-from autofix.handlers.value_error_handler import ValueErrorHandler
+from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
+from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 
 
 def test_file_not_found_handler_can_handle():

@@ -1,4 +1,4 @@
-﻿import time
+import time
 import subprocess
 import sys
 import os
@@ -14,15 +14,15 @@ from datetime import datetime, timezone
 from ..helpers.logging_utils import get_logger, quick_setup
 from ..helpers.spinner import spinner
 from ..core.error_parser import ErrorParser, ParsedError
-from autofix.handlers.file_not_found_handler import FileNotFoundHandler
-from autofix.handlers.value_error_handler import ValueErrorHandler
+from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
+from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 from ..python_fixer import PythonFixer
 try:
-    from autofix.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
+    from autofix_core.shared.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
     from ..constants import ErrorType, MetadataKey, FixStatus, SyntaxErrorSubType, RegexPatterns, EnvironmentVariables, ErrorMessagePatterns
 except ImportError:
-    from autofix.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
-    from autofix.constants import ErrorType, MetadataKey, FixStatus
+    from autofix_core.shared.handlers.syntax_error_handler import create_syntax_error_handler, SyntaxErrorType
+    from autofix_core.shared.constants import ErrorType, MetadataKey, FixStatus
 from .cli_parser import create_parser, validate_args, validate_script_path
 
 logger = get_logger("autofix_cli_interactive")

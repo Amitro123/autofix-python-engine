@@ -27,12 +27,12 @@ try:
     from ..helpers.logging_utils import get_logger
     from ..constants import ValidationPatterns
 except ImportError:
-    from autofix.import_suggestions import (
+    from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE
     )
-    from autofix.helpers.logging_utils import get_logger
-    from autofix.constants import ValidationPatterns
+    from autofix_core.shared.helpers.logging_utils import get_logger
+    from autofix_core.shared.constants import ValidationPatterns
 
 
 # A strict allowlist of packages that are considered safe for auto-installation.

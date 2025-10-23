@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from autofix_core.infrastructure.api.dependencies import get_debugger_service
 from autofix_core.application.services.debugger_service import DebuggerService, ExecutionMode
-from autofix.helpers.logging_utils import get_logger
+from autofix_core.shared.helpers.logging_utils import get_logger
 from autofix_core.infrastructure.api.dependencies import (
     get_debugger_service,
     require_debug_enabled,

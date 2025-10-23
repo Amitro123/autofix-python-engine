@@ -4,7 +4,7 @@ Direct test of IndexError fixing without Firebase dependency
 """
 
 from autofix.python_fixer import PythonFixer
-from autofix.core.error_parser import ErrorParser
+from autofix_core.shared.core.error_parser import ErrorParser
 import tempfile
 import os
 
