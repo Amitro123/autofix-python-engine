@@ -1,0 +1,98 @@
+{
+  "system_summary": "This system provides AI-powered code analysis, debugging, and automated code fixing capabilities, accessible via a command-line interface or a web dashboard, leveraging external large language models and a persistent knowledge base.",
+  "components": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "type": "cli",
+      "role": "Allows users to interact with the system and trigger code analysis and fixing operations directly from their terminal.",
+      "visual_3d_object": "A dark, translucent command-line interface terminal window with green text scrolling.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'CLI' in bold white sans-serif font."
+    },
+    {
+      "id": "webui",
+      "label": "Web Dashboard",
+      "type": "frontend",
+      "role": "Provides a user-friendly graphical interface for configuring, monitoring, and interacting with the code analysis and autofixing processes.",
+      "visual_3d_object": "A glowing, minimalist browser window displaying a clean dashboard layout with charts and code snippets.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'WEB DASHBOARD' in bold white sans-serif font."
+    },
+    {
+      "id": "backend",
+      "label": "API Backend",
+      "type": "backend",
+      "role": "Serves as the central processing unit, exposing APIs for the CLI and Web Dashboard, orchestrating analysis, debugging, and fix generation.",
+      "visual_3d_object": "A sleek, metallic server rack with pulsating blue light indicators, representing core processing.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'API BACKEND' in bold white sans-serif font."
+    },
+    {
+      "id": "ai_orchestrator",
+      "label": "AI Orchestrator",
+      "type": "ai_model",
+      "role": "Manages interactions with external Large Language Models, including caching, context building, and routing requests for code generation and analysis.",
+      "visual_3d_object": "A crystalline, multi-faceted brain-like structure with neural pathways subtly glowing.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'AI ORCHESTRATOR' in bold white sans-serif font."
+    },
+    {
+      "id": "analyzers",
+      "label": "Static Analyzers",
+      "type": "worker",
+      "role": "Executes various static code analysis tools (e.g., Pylint, Bandit) to identify potential issues and vulnerabilities in the provided codebase.",
+      "visual_3d_object": "A set of interconnected, spinning gears with a magnifying glass hovering over them, symbolizing detailed inspection.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'ANALYZERS' in bold white sans-serif font."
+    },
+    {
+      "id": "knowledge_db",
+      "label": "Knowledge Base DB",
+      "type": "database",
+      "role": "Stores and retrieves code analysis results, historical fixes, known patterns, and contextual information to inform the autofixing process.",
+      "visual_3d_object": "A stack of glowing, transparent data disks, contained within a secure, geometric vault.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'KNOWLEDGE BASE DB' in bold white sans-serif font."
+    },
+    {
+      "id": "external_llm",
+      "label": "External LLM Service",
+      "type": "external_service",
+      "role": "Represents the external Large Language Model (e.g., Google Gemini) that provides advanced code understanding, generation, and fixing capabilities.",
+      "visual_3d_object": "A distant, swirling nebula of data, hinting at vast computational power beyond the system's local boundary.",
+      "visual_label": "Floating clearly above it, a flat holographic text label reading 'EXTERNAL LLM' in bold white sans-serif font."
+    }
+  ],
+  "connections": [
+    {
+      "from": "cli",
+      "to": "backend",
+      "label": "Sends code analysis/fix requests"
+    },
+    {
+      "from": "webui",
+      "to": "backend",
+      "label": "Sends dashboard commands/requests"
+    },
+    {
+      "from": "backend",
+      "to": "ai_orchestrator",
+      "label": "Requests AI-driven insights/fixes"
+    },
+    {
+      "from": "backend",
+      "to": "analyzers",
+      "label": "Invokes static code analysis"
+    },
+    {
+      "from": "backend",
+      "to": "knowledge_db",
+      "label": "Stores/retrieves analysis data"
+    },
+    {
+      "from": "ai_orchestrator",
+      "to": "external_llm",
+      "label": "Sends prompts, receives AI responses"
+    },
+    {
+      "from": "ai_orchestrator",
+      "to": "knowledge_db",
+      "label": "Caches/retrieves AI context & memory"
+    }
+  ]
+}
