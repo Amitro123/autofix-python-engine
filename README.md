@@ -9,6 +9,7 @@
 [![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen)](tests/)
 [![Gemini 2.0](https://img.shields.io/badge/AI-Gemini%202.0-orange)](https://ai.google.dev/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![gitcgr](https://gitcgr.com/badge/Amitro123/autofix-python-engine.svg)](https://gitcgr.com/Amitro123/autofix-python-engine)
 
 **AutoFix v2.4.0** is an AI-powered Python debugging tool with contextual analysis, variable tracing, and RAG-based knowledge retrieval. It uses Google's Gemini 2.0 with function calling to understand your code's runtime state and provide intelligent, context-aware fixes.
 
