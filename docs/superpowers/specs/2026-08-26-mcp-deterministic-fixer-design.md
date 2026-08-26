@@ -86,16 +86,23 @@ matches how `infrastructure/api` itself already calls these services.
 
 ## Tool surface (MVP: one tool)
 
+**Revised after auditing every handler's actual `apply_fix` return value**
+(not just its name/docstring — see "Handler audit" below): most handler
+classes are suggestion-only today. The tool surface reflects that
+honestly with a three-way `resolved_by`, instead of a binary
+resolved/not-resolved that would misrepresent suggestion-only output as
+a real fix.
+
 ```
 fix_error(code: str, error_message: str, file_path: str | None = None) -> FixResult
 
 FixResult:
-  resolved: bool
-  error_type: str                 # e.g. "ModuleNotFoundError"
-  patched_code: str | None        # full patched source, only if resolved
-  diff: str | None                # unified diff, only if resolved
-  explanation: str | None         # one-line human-readable summary of the fix
-  resolved_by: "deterministic" | "no_match"
+  error_type: str                 # e.g. "ImportError"
+  resolved_by: "fix" | "suggestion" | "no_match"
+  patched_code: str | None        # full patched source, only if resolved_by == "fix"
+  diff: str | None                # unified diff, only if resolved_by == "fix"
+  suggestions: list[str] | None   # structured suggestion text, only if resolved_by == "suggestion"
+  explanation: str | None         # one-line human-readable summary
   telemetry: { estimated_tokens_saved: int | None }
 ```
 
@@ -107,28 +114,60 @@ itself.
 A single tool, not one-per-error-type: keeps the surface minimal (YAGNI)
 until real usage data says otherwise.
 
+### Handler audit (ground truth for MVP error-type coverage)
+
+Verified by reading every handler's `apply_fix` body, not inferring from
+names:
+
+| Error type | Real behavior today | MVP tier |
+|---|---|---|
+| `ImportError` | `ImportErrorHandler.apply_fix` (`import_error_handler.py:129`) genuinely adds an `import` line via `_add_import_to_script` and returns `True` — a real, diffable text fix. | **`fix`** |
+| `IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError`, `NameError` | Each handler's `apply_fix` only `print()`s suggestions to stdout and unconditionally `return False`. No code is ever mutated. The suggestion text *does* exist as structured data in `analyze_error()`'s returned `details["suggestions"]`, just never surfaced anywhere outside a print. | **`suggestion`** (surface `details["suggestions"]` as data instead of a print) |
+| `ModuleNotFoundError` | `ModuleNotFoundHandler.apply_fix` does real work, but the "fix" is a **side effect** — `pip install` (gated by an allowlist and `auto_install`) or creating a brand-new module file — not an edit to the input `code`. Doesn't fit a diff-of-`code` contract, and installing packages is exactly the kind of execution this tool is designed to avoid. | **Excluded from MVP** (candidate for a later, explicitly side-effecting tool, not `fix_error`) |
+| `SyntaxError`, `AttributeError`, `TypeError`, everything else `ErrorType` doesn't map | Mixed/inconsistent (`SyntaxError` handler returns `True` on some branches, `False` on others) or not meaningfully wired. Out of scope for MVP — falls through to `no_match`, same as any truly unrecognized error. | **`no_match`** |
+
 ## Data flow
 
 1. Agent calls `fix_error` with the source it already has and the
    traceback/error text it already saw.
-2. The adapter parses `error_message` into a `ParsedError` (reusing
-   `ErrorParser`; if `ErrorParser` currently only parses live exception
-   objects rather than error text, extending it to parse a traceback
-   string is in-scope implementation work for this feature, not a
-   redesign of it).
-3. The adapter writes `code` to a private temp file (`tempfile`,
-   deleted after the call), and calls
-   `PythonFixer(config={...}).fix_parsed_error(parsed_error)` against
-   it — reusing the existing handler dispatch unmodified rather than
-   refactoring handlers to operate on in-memory strings. This is the one
-   deliberate shortcut in this design: it avoids touching
-   well-tested handler internals for MVP, at the cost of a temp-file
-   round trip per call (sub-millisecond, irrelevant next to an LLM round
-   trip).
-4. If a handler reports success, the adapter reads the temp file back,
-   computes a unified diff against the original `code`, and returns
-   `resolved=True` with the patch. If no handler matches or the handler
-   reports failure, returns `resolved=False, resolved_by="no_match"`.
+2. The adapter parses `error_message` into a `ParsedError`, reusing
+   `ErrorParser.parse_error(error_text)` — this string-based parser
+   **already exists** (`error_parser.py:49`), so no new parsing entry
+   point is needed. It is, however, materially thinner than the
+   exception-based `_parse_exception_impl` path: it only special-cases
+   `ModuleNotFoundError`/`KeyError`/`ZeroDivisionError` and leaves
+   `missing_function` (needed for `NameError`) and other per-type fields
+   unset for everything else. Closing that gap for the MVP's actual
+   error types (`ImportError`'s `missing_module`/`missing_function`
+   extraction, in particular — the one type that needs to be accurate
+   since it drives a real patch) is in-scope implementation work; the
+   parsing entry point itself is not a redesign.
+3. For `ImportError` (the one `fix`-tier type): the adapter writes
+   `code` to a private temp file (`tempfile`, deleted after the call),
+   and calls `PythonFixer(config={"auto_install": False, "create_files": False})
+   .fix_parsed_error(parsed_error)` against it — reusing the existing
+   handler dispatch unmodified rather than refactoring handlers to
+   operate on in-memory strings. This is the one deliberate shortcut in
+   this design: it avoids touching well-tested handler internals for
+   MVP, at the cost of a temp-file round trip per call (sub-millisecond,
+   irrelevant next to an LLM round trip). `auto_install`/`create_files`
+   are forced off regardless of any caller input — this adapter must
+   never shell out or create files as a side effect of what is
+   documented as a read-only tool.
+   For the six `suggestion`-tier types: the adapter calls the matching
+   handler's `analyze_error(error_message, file_path)` directly (no temp
+   file needed — `analyze_error` only reads `error_output`/`file_path`
+   strings, never touches disk) and returns `details["suggestions"]` as
+   data. `apply_fix` is never called for these types — it only prints
+   and returns `False`, so calling it would add nothing but noise on
+   stdout.
+4. If the `ImportError` handler reports success, the adapter reads the
+   temp file back, computes a unified diff against the original `code`,
+   and returns `resolved_by="fix"` with the patch. For a matched
+   suggestion-tier type, returns `resolved_by="suggestion"` with the
+   suggestion list. If nothing matches (including `ModuleNotFoundError`,
+   `SyntaxError`, and any other type — see the handler audit table
+   above), returns `resolved_by="no_match"`.
 5. Telemetry is recorded (see below) as the last step, after the result
    is already computed — a telemetry failure must never affect the
    returned `FixResult`.
@@ -139,7 +178,7 @@ Every call appends one JSON line to `~/.autofix/mcp_telemetry.jsonl`
 (path configurable via env var):
 
 ```json
-{"ts": "...", "error_type": "ModuleNotFoundError", "resolved_by": "deterministic", "input_chars": 842, "estimated_tokens_saved": 350}
+{"ts": "...", "error_type": "ImportError", "resolved_by": "fix", "input_chars": 842, "estimated_tokens_saved": 500}
 ```
 
 Because the MCP tool never calls an LLM itself, there is no internal
@@ -148,27 +187,31 @@ kept the Gemini path). So the estimate is **explicitly an assumption,
 not a measurement**: a configurable constant
 (`AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX`, default a documented placeholder
 e.g. 500) representing "typical tokens an agent spends reasoning about
-and patching this class of error," applied only on `resolved=True`
-calls. `resolved_by="no_match"` calls are logged too (with
-`estimated_tokens_saved: 0`) so the success rate itself — the number
-that actually matters for evaluating this direction — is never
-inflated by silently dropping misses.
+and patching this class of error." It is applied **only on
+`resolved_by="fix"`** calls — a full, applied patch is the one case
+that plausibly avoids a whole reasoning-and-edit round trip.
+`resolved_by="suggestion"` calls log `estimated_tokens_saved: 0`: the
+agent still has to read the suggestion and write the patch itself, so
+claiming a token saving there would overstate the tool's value.
+`resolved_by="no_match"` calls are logged too (also `0`), so the
+success rate itself — the number that actually matters for evaluating
+this direction — is never inflated by silently dropping misses.
 
 A separate local script/console-command, `autofix-mcp-report` (a
 human-facing report, not an MCP tool — the agent has no use for it),
-reads the JSONL and prints: total calls, resolved vs. no-match count and
-rate by error type, and total estimated tokens saved using the
+reads the JSONL and prints: total calls, and count/rate by `resolved_by`
+and by error type, and total estimated tokens saved using the
 configured constant (with the constant's value shown in the output so
 the number is never presented as more precise than it is).
 
 ## Error handling
 
 The MCP tool call must never raise into the host agent. The handler
-dispatch is wrapped; any exception becomes
-`resolved=False, resolved_by="no_match"` plus a logged (not returned)
-server-side error — matching the defensive pattern already used by
-`ToolsService`'s existing tool wrappers. Telemetry writing is
-best-effort: wrapped separately, swallows its own errors.
+dispatch is wrapped; any exception becomes `resolved_by="no_match"` plus
+a logged (not returned) server-side error — matching the defensive
+pattern already used by `ToolsService`'s existing tool wrappers.
+Telemetry writing is best-effort: wrapped separately, swallows its own
+errors.
 
 ## Security
 
@@ -188,12 +231,17 @@ and tracked as an independent fix.
 
 - Unit tests for the new adapter (`infrastructure/mcp/server.py`):
   error-text parsing, temp-file lifecycle, diff generation, error
-  wrapping — mocking `PythonFixer` where useful.
-- One integration test using FastMCP's test client: calls `fix_error`
-  end-to-end for a real deterministic case (e.g. a missing stdlib
-  import) and asserts `resolved=True`, a non-empty `diff`, and
-  `estimated_tokens_saved > 0`; and one for an unresolvable case
-  asserting `resolved=False`.
+  wrapping — mocking `PythonFixer`/handlers where useful.
+- Integration tests using FastMCP's test client, one per `resolved_by`
+  outcome:
+  - `fix`: a real missing-import case (e.g. `math.sqrt` used without
+    `import math`) — asserts `resolved_by == "fix"`, a non-empty `diff`
+    that actually applies, and `estimated_tokens_saved > 0`.
+  - `suggestion`: a real `IndexError` case — asserts
+    `resolved_by == "suggestion"`, a non-empty `suggestions` list, and
+    `estimated_tokens_saved == 0`.
+  - `no_match`: an error type with no handler coverage (e.g.
+    `TypeError`) — asserts `resolved_by == "no_match"`.
 - No dependency on `GEMINI_API_KEY` or network access — the whole test
   suite for this feature runs fully offline.
 
@@ -209,9 +257,11 @@ claude mcp add autofix -- autofix-mcp-server
 
 ## Open questions carried into planning
 
-- Exact `ErrorParser` extension needed to parse a traceback **string**
-  (today it parses live exception objects) — confirm during planning
-  whether this is additive or needs a small refactor.
+- Exact fields `ErrorParser.parse_error` needs populated (beyond its
+  current `ModuleNotFoundError`/`KeyError`/`ZeroDivisionError` special
+  cases) to reliably extract `missing_module`/`missing_function` for
+  `ImportError` from text alone — needed since the `fix` tier's
+  correctness depends entirely on this extraction.
 - Final choice of default value for
   `AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX` — needs a short justification in
   the plan/README, not just a bare number.
