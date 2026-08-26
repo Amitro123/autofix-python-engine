@@ -47,6 +47,14 @@ def _read_assumed_tokens_per_fix() -> int:
 
 ASSUMED_TOKENS_PER_FIX = _read_assumed_tokens_per_fix()
 
+
+def estimated_tokens_saved_for(resolved_by: str) -> int:
+    """The one place this computation lives -- both FixResult.__post_init__
+    and log_fix_result call this instead of each re-deriving the same
+    `ASSUMED_TOKENS_PER_FIX if resolved_by == "fix" else 0` rule, so the
+    two can't quietly drift apart."""
+    return ASSUMED_TOKENS_PER_FIX if resolved_by == "fix" else 0
+
 DEFAULT_LOG_PATH = Path(
     os.environ.get("AUTOFIX_MCP_TELEMETRY_PATH", str(Path.home() / ".autofix" / "mcp_telemetry.jsonl"))
 )
@@ -54,7 +62,7 @@ DEFAULT_LOG_PATH = Path(
 
 def log_fix_result(result, input_chars: int, log_path: Optional[Path] = None) -> None:
     path = log_path or DEFAULT_LOG_PATH
-    tokens_saved = ASSUMED_TOKENS_PER_FIX if result.resolved_by == "fix" else 0
+    tokens_saved = estimated_tokens_saved_for(result.resolved_by)
 
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
