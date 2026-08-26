@@ -151,7 +151,7 @@ class ImportErrorHandler:
             import_statement = self.import_suggestions[missing_module]
             self.logger.info(f"Found import suggestion for '{missing_module}': {import_statement}")
 
-            if self._add_import_to_script(import_statement, file_path):
+            if self.add_import_to_script(import_statement, file_path):
                 self._print(f"\n✅ Successfully added import: {import_statement}")
                 return True
             else:
@@ -185,8 +185,15 @@ class ImportErrorHandler:
         """Read file content with UTF-8 encoding"""
         return Path(file_path).read_text(encoding="utf-8")
 
-    def _add_import_to_script(self, import_statement: str, script_path: str) -> bool:
-        """Add an import statement to the script"""
+    def add_import_to_script(self, import_statement: str, script_path: str) -> bool:
+        """Add an import statement to the script.
+
+        Public: this is the reusable "insert an import line into a file"
+        primitive, not just an apply_fix implementation detail -- the MCP
+        adapter's NameError fix tier (fix_error_adapter.py) calls it
+        directly for names that resolve to a confident single import but
+        don't go through apply_fix's own missing_module-keyed dispatch.
+        """
         if self.dry_run:
             self.logger.info(f"[DRY RUN] Would add import: {import_statement}")
             return True

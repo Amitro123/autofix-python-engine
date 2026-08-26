@@ -203,3 +203,25 @@ def suggest_import_for_name(name: str) -> Optional[List[str]]:
         return ["from os.path import isdir"]
 
     return None
+
+
+def suggest_confident_import_for_name(name: str) -> Optional[str]:
+    """Single, high-confidence import statement for an undefined name,
+    suitable for auto-applying as a patch (not just suggesting).
+
+    Deliberately narrower than suggest_import_for_name: only an
+    IMPORT_SUGGESTIONS or MATH_FUNCTIONS hit qualifies. Those are
+    unambiguous one-name-to-one-import mappings. MULTI_IMPORT_SUGGESTIONS
+    is excluded on purpose -- e.g. "dump" could mean json.dump or
+    pickle.dump, and guessing wrong would apply the wrong import silently.
+    The os.path naming heuristic (is*file/is*dir) is excluded too -- it's
+    a guess from a naming convention, not a confirmed mapping. Both stay
+    suggestion-only via suggest_import_for_name.
+    """
+    if name in IMPORT_SUGGESTIONS:
+        return IMPORT_SUGGESTIONS[name]
+
+    if name in MATH_FUNCTIONS:
+        return f"from math import {name}"
+
+    return None
