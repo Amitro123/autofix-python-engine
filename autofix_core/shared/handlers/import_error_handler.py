@@ -28,8 +28,15 @@ except ImportError:
 class ImportErrorHandler:
     """Handle ImportError - missing imports and package resolution"""
     
-    def __init__(self):
+    def __init__(self, dry_run: bool = False):
         self.logger = get_logger("import_error_handler")
+        self.dry_run = dry_run
+        self.import_suggestions = IMPORT_SUGGESTIONS
+        self.stdlib_modules = STDLIB_MODULES
+        self.known_pip_packages = KNOWN_PIP_PACKAGES
+        self.module_to_package = MODULE_TO_PACKAGE
+        self.multi_import_suggestions = MULTI_IMPORT_SUGGESTIONS
+        self.math_functions = MATH_FUNCTIONS
     
     def analyze_error(self, error_message: str, file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
         """
@@ -126,7 +133,7 @@ class ImportErrorHandler:
             import_statement = self.import_suggestions[missing_module]
             self.logger.info(f"Found import suggestion for '{missing_module}': {import_statement}")
             
-            if self.add_import_to_script(import_statement, file_path):
+            if self._add_import_to_script(import_statement, file_path):
                 print(f"\n✅ Successfully added import: {import_statement}")
                 return True
             else:
@@ -178,7 +185,18 @@ class ImportErrorHandler:
             return ["from os.path import isdir"]
         
         return None
-    
+
+    def _backup_file(self, file_path: str) -> str:
+        """Create backup before modifying file"""
+        backup_path = f"{file_path}.autofix.bak"
+        import shutil
+        shutil.copy2(file_path, backup_path)
+        return backup_path
+
+    def _read_file_content(self, file_path: str) -> str:
+        """Read file content with UTF-8 encoding"""
+        return Path(file_path).read_text(encoding="utf-8")
+
     def _add_import_to_script(self, import_statement: str, script_path: str) -> bool:
         """Add an import statement to the script"""
         if self.dry_run:
