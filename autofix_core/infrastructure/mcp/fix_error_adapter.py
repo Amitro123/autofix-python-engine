@@ -1,13 +1,16 @@
 """In-process adapter that exposes PythonFixer's deterministic handlers
 as a read-only, temp-file-scoped operation for the MCP server (Task 6)."""
 
+import contextlib
 import difflib
+import io
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from autofix_core.infrastructure.cli.python_fixer import PythonFixer
+from autofix_core.infrastructure.mcp.telemetry import ASSUMED_TOKENS_PER_FIX
 from autofix_core.shared.constants import ErrorType
 from autofix_core.shared.core.error_parser import ErrorParser
 from autofix_core.shared.handlers.index_error_handler import IndexErrorHandler
@@ -26,6 +29,16 @@ class FixResult:
     diff: Optional[str] = None
     suggestions: Optional[list] = None
     explanation: Optional[str] = None
+    telemetry: Optional[dict] = None
+
+    def __post_init__(self) -> None:
+        # Every FixResult carries a telemetry.estimated_tokens_saved figure
+        # per the spec's FixResult contract, computed with the exact same
+        # rule telemetry.py uses so the two never drift apart. Only fill it
+        # in when the caller didn't already supply one explicitly.
+        if self.telemetry is None:
+            tokens_saved = ASSUMED_TOKENS_PER_FIX if self.resolved_by == "fix" else 0
+            self.telemetry = {"estimated_tokens_saved": tokens_saved}
 
 
 _FIX_TIER_ERROR_TYPES = {ErrorType.IMPORT_ERROR}
@@ -92,7 +105,14 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
     try:
         parsed.file_path = tmp_path
         fixer = PythonFixer(config={"auto_install": False, "create_files": False})
-        fixed = fixer.fix_parsed_error(parsed)
+        # ImportErrorHandler.apply_fix (invoked deep inside fix_parsed_error)
+        # does bare print() on every branch. Under mcp.run() those prints
+        # would land on the real stdout fd -- the exact stream the stdio
+        # transport uses for JSON-RPC -- corrupting the protocol. Redirect
+        # and discard them here; this is adapter-side only, the shared
+        # handler is untouched since the CLI still relies on those prints.
+        with contextlib.redirect_stdout(io.StringIO()):
+            fixed = fixer.fix_parsed_error(parsed)
 
         if not fixed:
             return FixResult(error_type=parsed.error_type, resolved_by="no_match")

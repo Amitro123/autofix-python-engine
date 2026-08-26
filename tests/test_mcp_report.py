@@ -21,7 +21,37 @@ def test_format_report_summarizes_calls_by_resolution(tmp_path):
     assert "no_match: 1" in report
     assert "1000" in report  # total estimated tokens saved
 
+    # Fix rate: fix-tier calls / total calls, as a percentage.
+    assert "Fix rate: 50.0% (2/4)" in report
+
+    # Per-(error_type, resolved_by) breakdown.
+    assert "By error type:" in report
+    assert "ImportError: 2 fix" in report
+    assert "IndexError: 1 suggestion" in report
+    assert "TypeError: 1 no_match" in report
+
 
 def test_format_report_handles_missing_log_file(tmp_path):
     report = format_report(tmp_path / "does_not_exist.jsonl")
     assert "Total calls: 0" in report
+
+
+def test_format_report_skips_malformed_lines_without_raising(tmp_path):
+    log_path = tmp_path / "mcp_telemetry.jsonl"
+    good_record = {
+        "ts": "t1",
+        "error_type": "ImportError",
+        "resolved_by": "fix",
+        "input_chars": 10,
+        "estimated_tokens_saved": 500,
+    }
+    log_path.write_text(
+        json.dumps(good_record) + "\n" + "{not valid json at all\n",
+        encoding="utf-8",
+    )
+
+    report = format_report(log_path)
+
+    assert "Total calls: 1" in report
+    assert "fix: 1" in report
+    assert "(skipped 1 malformed record)" in report

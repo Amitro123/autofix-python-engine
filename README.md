@@ -872,9 +872,12 @@ spending their own tokens reasoning about a common error.
 Install and register with Claude Code:
 
 ```bash
-pip install -e .
+pip install -e ".[mcp]"
 claude mcp add autofix -- autofix-mcp-server
 ```
+
+The `mcp` extra (which pulls in `fastmcp`) requires Python 3.10+, even
+though the base `autofix-python-engine` package supports Python 3.8+.
 
 The tool never executes your code and never writes to your files — it takes
 the code and error text the agent already has, and returns either a ready

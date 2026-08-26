@@ -1,13 +1,16 @@
 """FastMCP server exposing the deterministic fix_error tool over stdio."""
 
+import logging
 from dataclasses import asdict
 
 from fastmcp import FastMCP
 
-from autofix_core.infrastructure.mcp.fix_error_adapter import run_fix_error
+from autofix_core.infrastructure.mcp.fix_error_adapter import FixResult, run_fix_error
 from autofix_core.infrastructure.mcp.telemetry import log_fix_result
 
 mcp = FastMCP("autofix-deterministic-fixer")
+
+_logger = logging.getLogger(__name__)
 
 
 @mcp.tool()
@@ -22,15 +25,17 @@ def fix_error(code: str, error_message: str, file_path: str = "") -> dict:
             error_message=error_message,
             file_path=file_path or None,
         )
-    except Exception as exc:  # never let an adapter bug crash the caller
-        return {
-            "error_type": "UnknownError",
-            "resolved_by": "no_match",
-            "patched_code": None,
-            "diff": None,
-            "suggestions": None,
-            "explanation": f"internal error: {exc}",
-        }
+    except Exception:  # never let an adapter bug crash the caller
+        # The stdio transport uses real stdout for the JSON-RPC stream (see
+        # fix_error_adapter._run_fix_tier), so the raw exception must never
+        # be printed there -- log it server-side instead, via `logging`
+        # (stderr), and never surface the exception text to the caller.
+        _logger.exception("internal error while running fix_error")
+        result = FixResult(
+            error_type="UnknownError",
+            resolved_by="no_match",
+            explanation="internal error while processing this request",
+        )
 
     try:
         log_fix_result(result, input_chars=len(code))

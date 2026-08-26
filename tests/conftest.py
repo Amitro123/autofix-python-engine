@@ -7,6 +7,7 @@ Provides:
 - Shared fixtures for all tests
 - Conditional test skipping based on package availability
 - Helper utilities for analyzer tests
+- Isolation of MCP telemetry writes away from the user's real log file
 """
 from __future__ import annotations
 
@@ -17,6 +18,8 @@ from types import SimpleNamespace
 
 import pytest
 from dotenv import load_dotenv
+
+import autofix_core.infrastructure.mcp.telemetry as telemetry
 
 
 # =============================================================================
@@ -62,7 +65,7 @@ def project_root_path():
 def api_key():
     """
     Provide Gemini API key for tests.
-    
+
     Skips test if GEMINI_API_KEY is not set in environment.
     """
     import os
@@ -89,23 +92,23 @@ def has_radon() -> bool:
 # =============================================================================
 
 def make_completed_process(
-    returncode: int = 0, 
-    stdout: str = "", 
+    returncode: int = 0,
+    stdout: str = "",
     stderr: str = ""
 ) -> SimpleNamespace:
     """
     Helper that creates a simple object resembling subprocess.CompletedProcess.
-    
+
     Used primarily for mocking subprocess.run() results in BanditAnalyzer tests.
-    
+
     Args:
         returncode: Exit code (0 = success, non-zero = error)
         stdout: Standard output content
         stderr: Standard error content
-        
+
     Returns:
         SimpleNamespace with returncode, stdout, stderr attributes
-        
+
     Example:
         >>> result = make_completed_process(0, '{"results": []}', '')
         >>> assert result.returncode == 0
@@ -118,13 +121,37 @@ def make_completed_process(
 def completed_process_factory():
     """
     Provide the make_completed_process helper to tests via fixture injection.
-    
+
     Example:
         def test_something(completed_process_factory):
             mock_result = completed_process_factory(0, "output", "")
             # Use mock_result...
     """
     return make_completed_process
+
+
+@pytest.fixture(autouse=True)
+def _isolate_mcp_telemetry_log(tmp_path, monkeypatch):
+    """Redirect MCP telemetry writes to a per-test temp file.
+
+    Without this, every test that exercises the fix_error MCP tool
+    end-to-end would append real records to the user's actual
+    ~/.autofix/mcp_telemetry.jsonl, polluting the feature's real
+    telemetry dataset with synthetic test noise.
+
+    log_fix_result reads the module-level DEFAULT_LOG_PATH name at call
+    time (not captured at import time), so patching the module attribute
+    here takes effect for every call made during the test -- including
+    calls made indirectly through server.py's fix_error tool, which never
+    passes an explicit log_path of its own.
+
+    Note: this only affects in-process calls. A test that spawns the MCP
+    server as a genuinely separate subprocess (e.g. test_mcp_server_stdio.py)
+    must instead set the AUTOFIX_MCP_TELEMETRY_PATH environment variable for
+    that subprocess, since monkeypatching this process's module state does
+    not reach into a child process.
+    """
+    monkeypatch.setattr(telemetry, "DEFAULT_LOG_PATH", tmp_path / "test_telemetry.jsonl")
 
 
 # =============================================================================
@@ -138,7 +165,7 @@ def pytest_configure(config):
         "requires_bandit: mark test as requiring bandit package"
     )
     config.addinivalue_line(
-        "markers", 
+        "markers",
         "requires_radon: mark test as requiring radon package"
     )
     config.addinivalue_line(
@@ -154,13 +181,13 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     """
     Automatically skip tests based on package availability.
-    
+
     Tests marked with @pytest.mark.requires_bandit will be skipped if bandit is not installed.
     Tests marked with @pytest.mark.requires_radon will be skipped if radon is not installed.
     """
     skip_bandit = pytest.mark.skip(reason="bandit package not installed")
     skip_radon = pytest.mark.skip(reason="radon package not installed")
-    
+
     for item in items:
         if "requires_bandit" in item.keywords and not HAS_BANDIT:
             item.add_marker(skip_bandit)
