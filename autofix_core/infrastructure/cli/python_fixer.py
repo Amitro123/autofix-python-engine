@@ -26,7 +26,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Callable
 from autofix_core.shared.handlers.syntax_error_handler import create_syntax_error_handler
-from autofix_core.shared.import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+from autofix_core.shared.import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS, suggest_import_for_name
 
 from autofix_core.shared.handlers.key_error_handler import KeyErrorHandler
 from autofix_core.shared.helpers.spinner import spinner
@@ -43,7 +43,7 @@ from autofix_core.shared.handlers.module_not_found_handler import (
 
 # Handle both relative and absolute imports
 try:
-    from .constants import ErrorType
+    from .constants import ErrorType, BACKUP_EXTENSION
     from .core.error_parser import ErrorParser, ParsedError
     from .helpers.logging_utils import get_logger
     from autofix_core.shared.import_suggestions import (
@@ -52,7 +52,7 @@ try:
     )
 except ImportError:
     # Fallback for direct execution
-    from autofix_core.shared.constants import ErrorType
+    from autofix_core.shared.constants import ErrorType, BACKUP_EXTENSION
     from autofix_core.shared.core.error_parser import ErrorParser, ParsedError
     from autofix_core.shared.helpers.logging_utils import get_logger
     from autofix_core.shared.import_suggestions import (
@@ -72,83 +72,6 @@ class PythonFixer:
         self.logger = get_logger("python_fixer")
         self.dry_run = self.config.get('dry_run', False)
               
-    def analyze_potential_fixes(self, script_path: str) -> dict:
-        """Analyze script and identify potential fixes without making changes"""
-        results = {'script_path': script_path, 'errors_found': [], 'analysis_complete': True}
-        
-        try:
-            self.logger.info(f"Analyzing script for potential fixes: {script_path}")
-            runpy.run_path(script_path, run_name="__main__")
-            self.logger.info("Script runs without errors - no fixes needed")
-            return results
-            
-        except Exception as e:
-            self.logger.info(f"Found error that would be fixed: {type(e).__name__}: {e}")
-            parsed_error = self.error_parser.parse_exception(e, script_path)
-            
-            error_info = {
-                'type': parsed_error.error_type,
-                'message': str(e),
-                'file_path': parsed_error.file_path,
-                'line_number': parsed_error.line_number,
-                'suggested_fixes': self._generate_fix_suggestions(parsed_error)
-            }
-            
-            results['errors_found'].append(error_info)
-            return results
-    
-    def _generate_fix_suggestions(self, error: ParsedError) -> list:
-        """Generate fix suggestions based on error type"""
-        error_type = ErrorType.from_string(error.error_type)
-        
-        if error_type == ErrorType.MODULE_NOT_FOUND:
-            return self._suggest_module_fixes(error.missing_module)
-        elif error_type == ErrorType.NAME_ERROR:
-            return self._suggest_name_fixes(error.missing_function)
-        elif error_type == ErrorType.IMPORT_ERROR:
-            return self._suggest_import_fixes(error.missing_function, error.missing_module)
-        elif error_type == ErrorType.SYNTAX_ERROR:
-            return ["Fix syntax error automatically"]
-        elif error_type == ErrorType.GENERAL_SYNTAX:
-            return ["Fix general syntax error automatically"]
-        else:
-            return [f"Attempt to fix {error.error_type}"]
-    
-    def _suggest_module_fixes(self, module: str) -> list:
-        """Generate suggestions for ModuleNotFoundError"""
-        if not module:
-            return []
-        
-        handler = ModuleNotFoundHandler()
-        
-        if module in handler.known_pip_packages:
-            return [f"Install pip package: {module}"]
-        
-        package_name = ModuleValidation.resolve_package_name(module)
-        if package_name and package_name != module:
-            return [f"Install pip package: {package_name} (for module {module})"]
-        
-        return [f"Create local module file: {module}.py"]
-
-    
-    def _suggest_name_fixes(self, function: str) -> list:
-        """Generate suggestions for NameError"""
-        if not function:
-            return []
-        
-        if function in self.common_imports:
-            return [f"Add import: {self.common_imports[function]}"]
-        elif function in self.math_functions:
-            return [f"Add import: from math import {function}"]
-        else:
-            return [f"Create function: {function}()"]
-    
-    def _suggest_import_fixes(self, function: str, module: str) -> list:
-        """Generate suggestions for ImportError"""
-        if function and module:
-            return [f"Add import: from {module} import {function}"]
-        return []
-    
     def run_script_with_fixes(self, script_path: str, recursion_depth: int = 0) -> bool:
         """
         Run Python script with automatic error fixing
@@ -296,13 +219,11 @@ class PythonFixer:
 
         print("\nSuggestions:")
 
-        if missing_name in IMPORT_SUGGESTIONS:
-            print(f"  1. Add import: {IMPORT_SUGGESTIONS[missing_name]}")
-            print(f"  2. Check variable spelling")
-        # Check if it's a math function
-        elif missing_name in MATH_FUNCTIONS:
-            print(f"  1. Add import: from math import {missing_name}")
-            print(f"  2. Define the function before use")
+        import_suggestions = suggest_import_for_name(missing_name)
+        if import_suggestions:
+            for i, suggestion in enumerate(import_suggestions, 1):
+                print(f"  {i}. Add import: {suggestion}")
+            print(f"  {len(import_suggestions) + 1}. Check variable spelling")
         else:
             print("  1. Check variable/function spelling")
             print("  2. Define variable before use")
@@ -421,7 +342,7 @@ class PythonFixer:
     
     def _backup_file(self, file_path: str) -> str:
         """Create backup before modifying file"""
-        backup_path = f"{file_path}.autofix.bak"
+        backup_path = f"{file_path}{BACKUP_EXTENSION}"
         import shutil
         shutil.copy2(file_path, backup_path)
         return backup_path
@@ -758,11 +679,5 @@ def {function_name}({param_str}):
         except Exception as e:
             self.logger.error(f"Error moving function {function_name}: {e}")
             return False
-    
-    def _suggest_library_import(self, function_name: str, module_name: str = None) -> Optional[List[str]]:
-        """Suggest library imports for common functions - delegate to handler"""
-        
-        handler = ImportErrorHandler()
-        return handler.suggest_library_import(function_name, module_name)
 
 

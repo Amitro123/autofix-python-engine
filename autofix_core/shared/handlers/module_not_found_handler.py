@@ -16,7 +16,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 
 # Handle both relative and absolute imports
 try:
@@ -25,14 +25,14 @@ try:
         MODULE_TO_PACKAGE
     )
     from ..helpers.logging_utils import get_logger
-    from ..constants import ValidationPatterns
+    from ..constants import ValidationPatterns, RegexPatterns
 except ImportError:
     from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE
     )
     from autofix_core.shared.helpers.logging_utils import get_logger
-    from autofix_core.shared.constants import ValidationPatterns
+    from autofix_core.shared.constants import ValidationPatterns, RegexPatterns
 
 
 # A strict allowlist of packages that are considered safe for auto-installation.
@@ -188,22 +188,6 @@ class ModuleCreator:
             self.logger.error(f"Error creating nested module {module_name}: {e}")
             return False
     
-    def create_function_module(self, module_name: str, script_path: str, 
-                             functions: List[str]) -> bool:
-        """
-        Create a module with placeholder functions
-        
-        Args:
-            module_name: Name of the module to create
-            script_path: Path to the script that imports the module
-            functions: List of function names to create as placeholders
-            
-        Returns:
-            True if module created successfully
-        """
-        template = self._get_function_template(module_name, functions)
-        return self.create_module_file(module_name, script_path, template)
-    
     def _get_default_template(self, module_name: str) -> str:
         """Default module template"""
         return f'''"""
@@ -229,22 +213,6 @@ def placeholder_function():
     return "Module {module_name} created by AutoFix"
 '''
     
-    def _get_function_template(self, module_name: str, functions: List[str]) -> str:
-        """Template with specific functions"""
-        content = f'''"""
-{module_name} - Auto-generated module with functions
-"""
-
-'''
-        for func in functions:
-            content += f'''
-def {func}(*args, **kwargs):
-    """Placeholder for {func}"""
-    pass
-'''
-        
-        return content
-
 
 # ========================================================================
 # SECTION 3: PACKAGE INSTALLATION
@@ -450,7 +418,7 @@ class ModuleNotFoundHandler:
     def _extract_module_name(self, error_message: str) -> Optional[str]:
         """Extract module name from ModuleNotFoundError message"""
         # Pattern: "No module named 'module_name'"
-        match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_message)
+        match = re.search(RegexPatterns.MODULE_NAME, error_message)
         if match:
             return match.group(1)
         return None
