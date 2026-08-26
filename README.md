@@ -861,3 +861,33 @@ $ autofix script.py --auto-fix
 **Made with ❤️ by Amit Rosen**
 
 **AutoFix v2.4.0** - Debug smarter, not harder.
+
+## MCP Server (experimental)
+
+`autofix-python-engine` can run as a local [MCP](https://modelcontextprotocol.io)
+server that exposes its deterministic, zero-token error-fixing handlers as a
+single tool, `fix_error`, for coding agents like Claude Code to call before
+spending their own tokens reasoning about a common error.
+
+Install and register with Claude Code:
+
+```bash
+pip install -e .
+claude mcp add autofix -- autofix-mcp-server
+```
+
+The tool never executes your code and never writes to your files — it takes
+the code and error text the agent already has, and returns either a ready
+patch (`resolved_by: "fix"`), a targeted suggestion (`resolved_by: "suggestion"`),
+or nothing (`resolved_by: "no_match"`), in which case the agent proceeds as
+it normally would.
+
+Every call is logged locally to `~/.autofix/mcp_telemetry.jsonl`. Run
+`autofix-mcp-report` to see a summary, including an estimated token-savings
+figure (an explicit assumption, not a measurement — see the report's own
+output for the constant it uses).
+
+Today `fix_error` produces a real patch (`"fix"`) only for `ImportError`;
+`IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError`,
+and `NameError` return a `"suggestion"` instead of a patch. Everything else
+returns `"no_match"`.
