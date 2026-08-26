@@ -65,6 +65,7 @@ def format_report(log_path: Path) -> str:
         f"  fix: {fix_count}",
         f"  suggestion: {by_resolution.get('suggestion', 0)}",
         f"  no_match: {by_resolution.get('no_match', 0)}",
+        f"  error: {by_resolution.get('error', 0)}",
         "",
         f"Fix rate: {fix_rate:.1f}% ({fix_count}/{total})",
         "",

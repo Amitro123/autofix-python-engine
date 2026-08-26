@@ -24,7 +24,12 @@ from autofix_core.shared.import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNC
 @dataclass
 class FixResult:
     error_type: str
-    resolved_by: str  # "fix" | "suggestion" | "no_match"
+    resolved_by: str  # "fix" | "suggestion" | "no_match" | "error"
+    # This module's own functions (run_fix_error, _run_fix_tier) only ever
+    # produce "fix" | "suggestion" | "no_match" -- "error" is a fourth state
+    # the MCP server (server.py) constructs directly when the adapter raises
+    # unexpectedly, to keep "tool bug" observably distinct from "the engine
+    # looked and genuinely has nothing" (see server.py's exception handler).
     patched_code: Optional[str] = None
     diff: Optional[str] = None
     suggestions: Optional[list] = None
