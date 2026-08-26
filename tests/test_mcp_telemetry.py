@@ -39,11 +39,16 @@ def test_log_fix_result_reports_zero_savings_for_suggestion_and_no_match(tmp_pat
 
 
 def test_log_fix_result_never_raises_when_path_is_unwritable(tmp_path):
-    unwritable_dir = tmp_path / "does" / "not" / "exist"
-    log_path = unwritable_dir / "mcp_telemetry.jsonl"
+    # Create a file that will block directory creation.
+    # When path.parent.mkdir() tries to create "blocker" as a directory,
+    # it will raise NotADirectoryError (a subclass of OSError) because
+    # "blocker" already exists as a file, not a directory.
+    blocker = tmp_path / "blocker"
+    blocker.write_text("I'm a file, not a directory")
+    log_path = blocker / "mcp_telemetry.jsonl"
 
-    # Should not raise even though the parent directory doesn't exist and
-    # this function must never create it in a way that could fail loudly.
+    # Should not raise even though path.parent.mkdir() will fail with
+    # NotADirectoryError. The try-except in log_fix_result must catch it.
     log_fix_result(
         FixResult(error_type="ImportError", resolved_by="fix"),
         input_chars=1,
