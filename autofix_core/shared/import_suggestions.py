@@ -6,6 +6,8 @@ Contains all the mappings and data structures used by PythonFixer
 to suggest and add appropriate imports for missing functions and modules.
 """
 
+from typing import List, Optional
+
 # Simple import suggestions (one option per function)
 IMPORT_SUGGESTIONS = {
     "sleep": "from time import sleep",
@@ -170,3 +172,34 @@ MODULE_TO_PACKAGE = {
     "transformers": "transformers",
     "huggingface_hub": "huggingface-hub",
 }
+
+
+def suggest_import_for_name(name: str) -> Optional[List[str]]:
+    """Suggest import statement(s) for an undefined name (function, class,
+    or module reference).
+
+    Single source of truth for this lookup -- IMPORT_SUGGESTIONS, then
+    MULTI_IMPORT_SUGGESTIONS, then MATH_FUNCTIONS, then a couple of
+    os.path naming-convention heuristics. Previously reimplemented with
+    varying completeness in three places: ImportErrorHandler's own
+    apply_fix() suggestion text, PythonFixer._fix_name_error(), and the
+    MCP adapter's _name_error_suggestions() -- the MCP version in
+    particular had silently dropped the MULTI_IMPORT_SUGGESTIONS and
+    os.path branches this function restores.
+    """
+    if name in IMPORT_SUGGESTIONS:
+        return [IMPORT_SUGGESTIONS[name]]
+
+    if name in MULTI_IMPORT_SUGGESTIONS:
+        return MULTI_IMPORT_SUGGESTIONS[name]
+
+    if name in MATH_FUNCTIONS:
+        return [f"from math import {name}"]
+
+    if name.startswith("is") and name.endswith("file"):
+        return ["from os.path import isfile"]
+
+    if name.startswith("is") and name.endswith("dir"):
+        return ["from os.path import isdir"]
+
+    return None

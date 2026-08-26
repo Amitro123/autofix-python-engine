@@ -17,8 +17,10 @@ _logger = logging.getLogger(__name__)
 def fix_error(code: str, error_message: str, file_path: str = "") -> dict:
     """Try to resolve a Python error deterministically (no LLM call) before
     reasoning about it yourself. Returns resolved_by: "fix" (a ready-to-apply
-    patch), "suggestion" (targeted guidance, no patch), or "no_match" (this
-    tool has nothing for this error - proceed as you normally would)."""
+    patch), "suggestion" (targeted guidance, no patch), "no_match" (this tool
+    has nothing for this error - proceed as you normally would), or "error"
+    (this tool itself failed internally - not the same as no_match; treat it
+    as "unknown, not as nothing to do here")."""
     try:
         result = run_fix_error(
             code=code,
@@ -30,10 +32,15 @@ def fix_error(code: str, error_message: str, file_path: str = "") -> dict:
         # fix_error_adapter._run_fix_tier), so the raw exception must never
         # be printed there -- log it server-side instead, via `logging`
         # (stderr), and never surface the exception text to the caller.
+        # resolved_by="error" (not "no_match"): a tool bug is a different
+        # fact than "the engine looked and genuinely has nothing" -- folding
+        # the two together would hide real failures inside a state an agent
+        # is supposed to read as "proceed normally," and would silently
+        # inflate the no_match count in telemetry.
         _logger.exception("internal error while running fix_error")
         result = FixResult(
             error_type="UnknownError",
-            resolved_by="no_match",
+            resolved_by="error",
             explanation="internal error while processing this request",
         )
 

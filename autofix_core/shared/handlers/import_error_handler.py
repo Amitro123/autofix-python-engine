@@ -5,23 +5,25 @@ ImportError Handler - Handle ImportError with smart package resolution
 
 import re
 import os
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
 
 # Handle both relative and absolute imports
 try:
-    from ..import_suggestions import ( 
-        IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES, 
+    from ..import_suggestions import (
+        IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
     )
     from ..helpers.logging_utils import get_logger  # ← .. במקום ...
+    from ..constants import RegexPatterns, BACKUP_EXTENSION
 except ImportError:
-    from autofix_core.shared.import_suggestions import ( 
-        IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES, 
+    from autofix_core.shared.import_suggestions import (
+        IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
         MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
     )
     from autofix_core.shared.helpers.logging_utils import get_logger
+    from autofix_core.shared.constants import RegexPatterns, BACKUP_EXTENSION
 
 
 
@@ -101,15 +103,15 @@ class ImportErrorHandler:
     def _extract_module_name(self, error_message: str) -> Optional[str]:
         """Extract module name from ImportError message"""
         # Pattern: "No module named 'module_name'"
-        match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_message)
+        match = re.search(RegexPatterns.MODULE_NAME, error_message)
         if match:
             return match.group(1)
-        
+
         # Pattern: "cannot import name 'function' from 'module'"
-        match = re.search(r"cannot import name ['\"]([^'\"]+)['\"] from ['\"]([^'\"]+)['\"]", error_message)
+        match = re.search(RegexPatterns.CANNOT_IMPORT_NAME, error_message)
         if match:
             return match.group(2)  # Return the module name
-        
+
         return None
     
     def apply_fix(self, error_type: str, file_path: str, details: Dict[str, Any]) -> bool:
@@ -172,39 +174,9 @@ class ImportErrorHandler:
         self._print("\nImportError requires manual installation - PARTIAL result")
         return False
 
-    
-    def suggest_library_import(self, function_name: str, module_name: str = None) -> Optional[List[str]]:
-        """
-        Suggest library imports for common functions
-        
-        Args:
-            function_name: Name of the function to import
-            module_name: Optional module name context
-            
-        Returns:
-            List of import suggestions or None
-        """
-        if function_name in self.import_suggestions:
-            return [self.import_suggestions[function_name]]
-        
-        if function_name in self.multi_import_suggestions:
-            return self.multi_import_suggestions[function_name]
-        
-        if function_name in self.math_functions:
-            return [f"from math import {function_name}"]
-        
-        # Check for common patterns
-        if function_name.startswith("is") and function_name.endswith("file"):
-            return ["from os.path import isfile"]
-        
-        if function_name.startswith("is") and function_name.endswith("dir"):
-            return ["from os.path import isdir"]
-        
-        return None
-
     def _backup_file(self, file_path: str) -> str:
         """Create backup before modifying file"""
-        backup_path = f"{file_path}.autofix.bak"
+        backup_path = f"{file_path}{BACKUP_EXTENSION}"
         import shutil
         shutil.copy2(file_path, backup_path)
         return backup_path

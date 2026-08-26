@@ -7,7 +7,7 @@ import logging
 class ErrorType(Enum):
     """Enumeration of error types that AutoFix can handle"""
     MODULE_NOT_FOUND = auto()
-    IMPORT_ERROR = auto() 
+    IMPORT_ERROR = auto()
     NAME_ERROR = auto()
     ATTRIBUTE_ERROR = auto()
     SYNTAX_ERROR = auto()
@@ -20,55 +20,59 @@ class ErrorType(Enum):
     KEY_ERROR = auto()
     ZERO_DIVISION_ERROR = auto()
     FILE_NOT_FOUND = auto()
-    VALUE_ERROR = auto() 
-    
+    VALUE_ERROR = auto()
+
     @classmethod
     def from_string(cls, error_string: str):
         """Convert error type string to ErrorType enum"""
-        error_map = {
-            "ModuleNotFoundError": cls.MODULE_NOT_FOUND,
-            "ImportError": cls.IMPORT_ERROR,
-            "NameError": cls.NAME_ERROR,
-            "AttributeError": cls.ATTRIBUTE_ERROR,
-            "SyntaxError": cls.SYNTAX_ERROR,
-            "IndexError": cls.INDEX_ERROR,
-            "TypeError": cls.TYPE_ERROR,
-            "IndentationError": cls.INDENTATION_ERROR,
-            "TabError": cls.TAB_ERROR,
-            "UnknownError": cls.UNKNOWN_ERROR,
-            "general_syntax": cls.GENERAL_SYNTAX,
-            "GeneralSyntax": cls.GENERAL_SYNTAX,
-            "missing_colon": cls.GENERAL_SYNTAX,
-            "KeyError": cls.KEY_ERROR,
-            "ZeroDivisionError": cls.ZERO_DIVISION_ERROR,
-            "FileNotFoundError": cls.FILE_NOT_FOUND,
-            "FileNotFound": cls.FILE_NOT_FOUND,
-            "ValueError": cls.VALUE_ERROR
-        }
-        return error_map.get(error_string)
-    
+        return _ERROR_TYPE_FROM_STRING.get(error_string)
+
     def to_string(self) -> str:
         """Convert ErrorType back to Python error string"""
-        string_map = {
-            self.MODULE_NOT_FOUND: "ModuleNotFoundError",
-            self.IMPORT_ERROR: "ImportError", 
-            self.NAME_ERROR: "NameError",
-            self.ATTRIBUTE_ERROR: "AttributeError",
-            self.SYNTAX_ERROR: "SyntaxError",
-            self.INDEX_ERROR: "IndexError",
-            self.TYPE_ERROR: "TypeError",
-            self.INDENTATION_ERROR: "IndentationError",
-            self.TAB_ERROR: "TabError",
-            self.UNKNOWN_ERROR: "UnknownError",
-            self.GENERAL_SYNTAX: "general_syntax",
-            self.KEY_ERROR: "KeyError",
-            self.ZERO_DIVISION_ERROR: "ZeroDivisionError",
-            self.FILE_NOT_FOUND: "FileNotFoundError",
-            self.VALUE_ERROR: "ValueError"      
-            
-        }
-        return string_map.get(self, "UnknownError")
-    
+        return _ERROR_TYPE_TO_STRING.get(self, "UnknownError")
+
+
+# Module-level so from_string()/to_string() don't rebuild these dicts on
+# every call -- built once at import time instead.
+_ERROR_TYPE_FROM_STRING = {
+    "ModuleNotFoundError": ErrorType.MODULE_NOT_FOUND,
+    "ImportError": ErrorType.IMPORT_ERROR,
+    "NameError": ErrorType.NAME_ERROR,
+    "AttributeError": ErrorType.ATTRIBUTE_ERROR,
+    "SyntaxError": ErrorType.SYNTAX_ERROR,
+    "IndexError": ErrorType.INDEX_ERROR,
+    "TypeError": ErrorType.TYPE_ERROR,
+    "IndentationError": ErrorType.INDENTATION_ERROR,
+    "TabError": ErrorType.TAB_ERROR,
+    "UnknownError": ErrorType.UNKNOWN_ERROR,
+    "general_syntax": ErrorType.GENERAL_SYNTAX,
+    "GeneralSyntax": ErrorType.GENERAL_SYNTAX,
+    "missing_colon": ErrorType.GENERAL_SYNTAX,
+    "KeyError": ErrorType.KEY_ERROR,
+    "ZeroDivisionError": ErrorType.ZERO_DIVISION_ERROR,
+    "FileNotFoundError": ErrorType.FILE_NOT_FOUND,
+    "FileNotFound": ErrorType.FILE_NOT_FOUND,
+    "ValueError": ErrorType.VALUE_ERROR,
+}
+
+_ERROR_TYPE_TO_STRING = {
+    ErrorType.MODULE_NOT_FOUND: "ModuleNotFoundError",
+    ErrorType.IMPORT_ERROR: "ImportError",
+    ErrorType.NAME_ERROR: "NameError",
+    ErrorType.ATTRIBUTE_ERROR: "AttributeError",
+    ErrorType.SYNTAX_ERROR: "SyntaxError",
+    ErrorType.INDEX_ERROR: "IndexError",
+    ErrorType.TYPE_ERROR: "TypeError",
+    ErrorType.INDENTATION_ERROR: "IndentationError",
+    ErrorType.TAB_ERROR: "TabError",
+    ErrorType.UNKNOWN_ERROR: "UnknownError",
+    ErrorType.GENERAL_SYNTAX: "general_syntax",
+    ErrorType.KEY_ERROR: "KeyError",
+    ErrorType.ZERO_DIVISION_ERROR: "ZeroDivisionError",
+    ErrorType.FILE_NOT_FOUND: "FileNotFoundError",
+    ErrorType.VALUE_ERROR: "ValueError",
+}
+
 # ========== SYNTAX ERROR TYPES ==========
 class SyntaxErrorType(Enum):
     """Enumeration of different syntax error types"""
@@ -100,6 +104,11 @@ class SyntaxErrorSubType(Enum):
 class RegexPatterns:
     """Centralized regex patterns for error fixes"""
     MODULE_NAME = r"No module named ['\"]([^'\"]+)['\"]"
+    # group(1) = imported name, group(2) = module it was imported from.
+    # Accepts both quote styles (some call sites only handled single
+    # quotes and had silently diverged from this one).
+    CANNOT_IMPORT_NAME = r"cannot import name ['\"]([^'\"]+)['\"] from ['\"]([^'\"]+)['\"]"
+    NAME_NOT_DEFINED = r"name '([^']+)' is not defined"
     STRING_PLUS_NUMBER_1 = r'(["\'][^"\']*["\'])\s*\+\s*(\d+)'
     STRING_PLUS_NUMBER_2 = r'(\d+)\s*\+\s*(["\'][^"\']*["\'])'
     STRING_PLUS_NUMBER_3 = r'(\w+)\s*\+\s*(\d+)'

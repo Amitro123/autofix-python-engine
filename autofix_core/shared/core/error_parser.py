@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 # Handle both relative and absolute imports
 try:
-    from ..helpers.rollback import FixTransaction
     from ..helpers.logging_utils import get_logger
+    from ..constants import RegexPatterns
 except ImportError:
     # Fallback for direct execution
-    from helpers.rollback import FixTransaction
     from autofix_core.shared.helpers.logging_utils import get_logger
+    from autofix_core.shared.constants import RegexPatterns
 
 
 @dataclass
@@ -46,7 +46,7 @@ class ErrorParser:
         self.logger = get_logger("error_parser")
         self.error_cache = {}
     
-    def parse_error(self, error_output: str) -> ParsedError: #amitro to do add constants
+    def parse_error(self, error_output: str) -> ParsedError:
         """Parse error output string into structured error information"""
         # Extract error type and message from stderr
         lines = error_output.strip().split('\n')
@@ -87,15 +87,15 @@ class ErrorParser:
                     file_path = file_match.group(1)
                 
                 # Extract line number
-                line_match = re.search(r'line (\d+)', line)
+                line_match = re.search(RegexPatterns.LINE_NUMBER, line)
                 if line_match:
                     line_number = int(line_match.group(1))
-        
+
         # Handle specific error types
         missing_module = None
-        
+
         if error_type == "ModuleNotFoundError":
-            module_match = re.search(r"No module named ['\"]([^'\"]+)['\"]", error_message)
+            module_match = re.search(RegexPatterns.MODULE_NAME, error_message)
             if module_match:
                 missing_module = module_match.group(1)
         
@@ -123,7 +123,7 @@ class ErrorParser:
             )
 
         if error_type == "NameError":
-            name_match = re.search(r"name '([^']+)' is not defined", error_message)
+            name_match = re.search(RegexPatterns.NAME_NOT_DEFINED, error_message)
             missing_function = name_match.group(1) if name_match else None
 
             return ParsedError(
@@ -249,7 +249,7 @@ class ErrorParser:
         missing_module = None
         
         # Pattern: "cannot import name 'X' from 'Y'"
-        import_match = re.search(r"cannot import name '([^']+)' from '([^']+)'", error_message)
+        import_match = re.search(RegexPatterns.CANNOT_IMPORT_NAME, error_message)
         if import_match:
             missing_function = import_match.group(1)
             missing_module = import_match.group(2)
@@ -260,9 +260,9 @@ class ErrorParser:
                 missing_module=missing_module,
                 missing_function=missing_function
             )
-        
+
         # Pattern: "No module named 'X'"
-        module_match = re.search(r"No module named '([^']+)'", error_message)
+        module_match = re.search(RegexPatterns.MODULE_NAME, error_message)
         if module_match:
             missing_module = module_match.group(1)
         
@@ -278,7 +278,7 @@ class ErrorParser:
         error_message = str(exception)
         
         # Pattern: "name 'X' is not defined"
-        name_match = re.search(r"name '([^']+)' is not defined", error_message)
+        name_match = re.search(RegexPatterns.NAME_NOT_DEFINED, error_message)
         missing_function = name_match.group(1) if name_match else None
         
         return ParsedError(
@@ -448,110 +448,3 @@ class ErrorParser:
             suggested_fix="Add validation to ensure divisor is not zero",
             context_lines=context
         )
-  
-    def apply_fix_with_transaction(self, script_path: str, fix_function, *args, **kwargs) -> bool:
-        """
-        Apply a fix function with transaction support and automatic rollback.
-        
-        Args:
-            script_path: Path to the script file
-            fix_function: Function that applies the fix
-            *args, **kwargs: Arguments to pass to the fix function
-            
-        Returns:
-            bool: True if fix was successful, False otherwise
-        """
-        script_file = Path(script_path)
-        
-        try:
-            with FixTransaction(script_file) as transaction:
-                self.logger.info(f"Starting transactional fix for {script_path}")
-                
-                # Apply the fix function
-                result = fix_function(script_path, *args, **kwargs)
-                
-                if not result:
-                    raise ValueError("Fix function returned False - fix failed")
-                
-                self.logger.success(f"Fix applied successfully to {script_path}")
-                return True
-                
-        except ValueError as e:
-            self.logger.error(f"Fix validation failed for {script_path}: {e}")
-            self.logger.info("File has been automatically restored from backup")
-            return False
-        except (FileNotFoundError, PermissionError) as e:
-            self.logger.error(f"File access error for {script_path}: {e}")
-            self.logger.info("File has been automatically restored from backup")
-            return False
-        except Exception as e:
-            self.logger.error(f"Unexpected error during fix for {script_path}: {e}")
-            self.logger.info("File has been automatically restored from backup")
-            return False
-    
-    def create_safe_fix_context(self, script_path: str):
-        """
-        Create a context manager for safe file fixing with automatic rollback.
-        
-        Usage:
-            with parser.create_safe_fix_context("script.py") as ctx:
-                # Apply fixes here
-                ctx.apply_fix_with_rollback(some_fix_function, arg1, arg2)
-
-        """
-        return SafeFixContext(script_path, self.logger)
-
-
-class SafeFixContext:
-    """Context manager for safe file fixing with transaction support"""
-    
-    def __init__(self, script_path: str, logger):
-        self.script_path = script_path
-        self.script_file = Path(script_path)
-        self.logger = logger
-        self.transaction = None
-        self.fixes_applied = []
-    
-    def __enter__(self):
-        """Enter the safe fix context"""
-        self.transaction = FixTransaction(self.script_file)
-        self.transaction.__enter__()
-        self.logger.info(f"Started safe fix context for {self.script_path}")
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the safe fix context"""
-        if exc_type:
-            self.logger.error(f"Error in safe fix context: {exc_val}")
-            self.logger.info("All changes will be rolled back automatically")
-        else:
-            self.logger.success(f"Safe fix context completed successfully for {self.script_path}")
-            if self.fixes_applied:
-                self.logger.info(f"Applied {len(self.fixes_applied)} fixes: {', '.join(self.fixes_applied)}")
-        
-        return self.transaction.__exit__(exc_type, exc_val, exc_tb)
-    
-    def apply_fix_with_rollback(self, fix_function, *args, **kwargs): #amitro to do
-        """Apply a fix function within the safe context with rollback protection"""
-        fix_name = getattr(fix_function, '__name__', 'unknown_fix')
-        
-        try:
-            self.logger.attempt(f"Applying fix: {fix_name}")
-            result = fix_function(self.script_path, *args, **kwargs)
-            
-            if result:
-                self.fixes_applied.append(fix_name)
-                self.logger.success(f"Fix applied successfully: {fix_name}")
-                return True
-            else:
-                raise ValueError(f"Fix function {fix_name} returned False")
-                
-        except ValueError as e:
-            self.logger.error(f"Fix validation failed for {fix_name}: {e}")
-            raise  # Re-raise to trigger rollback
-        except (FileNotFoundError, PermissionError) as e:
-            self.logger.error(f"File access error in fix {fix_name}: {e}")
-            raise  # Re-raise to trigger rollback
-        except Exception as e:
-            self.logger.error(f"Unexpected error in fix {fix_name}: {e}")
-            raise  # Re-raise to trigger rollback

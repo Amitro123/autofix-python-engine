@@ -82,9 +82,9 @@ def test_fix_error_tool_logs_and_masks_the_exception_when_run_fix_error_raises(m
     result = asyncio.run(_run())
     payload = result.data if hasattr(result, "data") else result
 
-    assert payload["resolved_by"] == "no_match"
+    assert payload["resolved_by"] == "error"
     assert "some sensitive internal detail" not in str(payload)
 
     assert len(logged_calls) == 1
-    assert logged_calls[0].resolved_by == "no_match"
+    assert logged_calls[0].resolved_by == "error"
     assert logged_calls[0].error_type == "UnknownError"

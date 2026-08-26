@@ -880,17 +880,33 @@ The `mcp` extra (which pulls in `fastmcp`) requires Python 3.10+, even
 though the base `autofix-python-engine` package supports Python 3.8+.
 
 The tool never executes your code and never writes to your files — it takes
-the code and error text the agent already has, and returns either a ready
-patch (`resolved_by: "fix"`), a targeted suggestion (`resolved_by: "suggestion"`),
-or nothing (`resolved_by: "no_match"`), in which case the agent proceeds as
-it normally would.
+the code and error text the agent already has, and returns one of four
+`resolved_by` states:
+
+- `"fix"` — a ready-to-apply patch (`patched_code` + `diff`).
+- `"suggestion"` — targeted guidance, no patch (`suggestions`, a list of strings).
+- `"no_match"` — this tool has nothing for this error; proceed as you normally would.
+- `"error"` — the tool itself failed internally. Not the same as `"no_match"`:
+  it means "something broke in the tool," not "the engine looked and has
+  nothing." The raw exception is logged server-side (stderr), never returned
+  to the caller.
 
 Every call is logged locally to `~/.autofix/mcp_telemetry.jsonl`. Run
-`autofix-mcp-report` to see a summary, including an estimated token-savings
-figure (an explicit assumption, not a measurement — see the report's own
-output for the constant it uses).
+`autofix-mcp-report` to see a summary — call counts and rate by resolution
+state, a breakdown by error type, and an estimated token-savings figure (an
+explicit assumption, not a measurement — see the report's own output for the
+constant it uses).
 
-Today `fix_error` produces a real patch (`"fix"`) only for `ImportError`;
-`IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError`,
-and `NameError` return a `"suggestion"` instead of a patch. Everything else
-returns `"no_match"`.
+Current coverage:
+
+| Error type | Result |
+|---|---|
+| `ImportError` — auto-importable name | `"fix"` (patch + diff) |
+| `ImportError` — recognized but not auto-importable | `"suggestion"` |
+| `ModuleNotFoundError` | `"suggestion"` (`pip install <pkg>` or create-locally guidance — never installs anything itself) |
+| `IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError`, `NameError` | `"suggestion"` |
+| Everything else | `"no_match"` |
+
+`ModuleNotFoundError` is deliberately never a `"fix"` — its real fix in this
+codebase is a side effect (installing a package, or creating a new file),
+not a diff of the input code, and this tool stays read-only by design.

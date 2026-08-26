@@ -9,7 +9,7 @@ from typing import Optional
 
 from autofix_core.infrastructure.cli.python_fixer import PythonFixer
 from autofix_core.infrastructure.mcp.telemetry import estimated_tokens_saved_for
-from autofix_core.shared.constants import ErrorType
+from autofix_core.shared.constants import ErrorType, BACKUP_EXTENSION
 from autofix_core.shared.core.error_parser import ErrorParser
 from autofix_core.shared.handlers.index_error_handler import IndexErrorHandler
 from autofix_core.shared.handlers.key_error_handler import KeyErrorHandler
@@ -18,13 +18,18 @@ from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
 from autofix_core.shared.handlers.import_error_handler import ImportErrorHandler
 from autofix_core.shared.handlers.module_not_found_handler import ModuleNotFoundHandler
-from autofix_core.shared.import_suggestions import IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+from autofix_core.shared.import_suggestions import suggest_import_for_name
 
 
 @dataclass
 class FixResult:
     error_type: str
-    resolved_by: str  # "fix" | "suggestion" | "no_match"
+    resolved_by: str  # "fix" | "suggestion" | "no_match" | "error"
+    # This module's own functions (run_fix_error, _run_fix_tier) only ever
+    # produce "fix" | "suggestion" | "no_match" -- "error" is a fourth state
+    # the MCP server (server.py) constructs directly when the adapter raises
+    # unexpectedly, to keep "tool bug" observably distinct from "the engine
+    # looked and genuinely has nothing" (see server.py's exception handler).
     patched_code: Optional[str] = None
     diff: Optional[str] = None
     suggestions: Optional[list] = None
@@ -51,11 +56,13 @@ _SUGGESTION_TIER_HANDLERS = {
 
 
 def _name_error_suggestions(parsed) -> list:
-    name = parsed.missing_function or "the undefined name"
-    if parsed.missing_function and parsed.missing_function in IMPORT_SUGGESTIONS:
-        return [f"Add import: {IMPORT_SUGGESTIONS[parsed.missing_function]}"]
-    if parsed.missing_function and parsed.missing_function in MATH_FUNCTIONS:
-        return [f"Add import: from math import {parsed.missing_function}"]
+    name = parsed.missing_function
+    if name:
+        import_suggestions = suggest_import_for_name(name)
+        if import_suggestions:
+            return [f"Add import: {s}" for s in import_suggestions]
+    else:
+        name = "the undefined name"
     return [
         f"Check spelling of '{name}'",
         f"Define '{name}' before use",
@@ -197,6 +204,6 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-        backup = Path(f"{tmp_path}.autofix.bak")
+        backup = Path(f"{tmp_path}{BACKUP_EXTENSION}")
         if backup.exists():
             backup.unlink()
