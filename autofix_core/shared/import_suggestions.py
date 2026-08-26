@@ -6,7 +6,9 @@ Contains all the mappings and data structures used by PythonFixer
 to suggest and add appropriate imports for missing functions and modules.
 """
 
-from typing import List, Optional
+import ast
+import math
+from typing import List, Optional, Set
 
 # Simple import suggestions (one option per function)
 IMPORT_SUGGESTIONS = {
@@ -147,9 +149,15 @@ KNOWN_PIP_PACKAGES = {
     "statsmodels", "networkx", "sympy", "nltk", "spacy", "transformers"
 }
 
-# Math functions that need special import
+# Math functions that need special import.
+# NOTE: only names that actually exist in the math module belong here.
+# "abs" used to be listed and does not (it's a builtin) -- "from math
+# import abs" raises ImportError, so suggesting it was wrong in every
+# tier, and auto-applying it turned a NameError into a harder failure.
+# names_bound_by() + the math check in suggest_confident_import_for_name
+# now enforce this structurally; keep the data honest anyway.
 MATH_FUNCTIONS = {
-    "sqrt", "sin", "cos", "tan", "log", "exp", "pow", "ceil", "floor", "abs"
+    "sqrt", "sin", "cos", "tan", "log", "exp", "pow", "ceil", "floor"
 }
 
 # Module name to package name mappings for pip installation
@@ -205,6 +213,38 @@ def suggest_import_for_name(name: str) -> Optional[List[str]]:
     return None
 
 
+def names_bound_by(source: str) -> Set[str]:
+    """Names that the import statements in `source` actually bind.
+
+    Works on a single import statement or a whole module. Uses ast rather
+    than string matching because both callers need to be exact:
+
+    - Validating a suggestion: "import pandas as pd" binds `pd`, not
+      `DataFrame`, so it does not resolve `NameError: name 'DataFrame'`.
+    - Checking whether code already imports a name: a substring test
+      thinks "import timeit" already provides "import time", and misses
+      that "from math import cos, sqrt" already binds `sqrt`.
+
+    Returns an empty set for source that doesn't parse; callers treat
+    that as "cannot verify" rather than "nothing imported".
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+
+    bound = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                # `import a.b` binds the top-level `a`; `import a.b as c` binds `c`.
+                bound.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                bound.add(alias.asname or alias.name)
+    return bound
+
+
 def suggest_confident_import_for_name(name: str) -> Optional[str]:
     """Single, high-confidence import statement for an undefined name,
     suitable for auto-applying as a patch (not just suggesting).
@@ -217,11 +257,31 @@ def suggest_confident_import_for_name(name: str) -> Optional[str]:
     The os.path naming heuristic (is*file/is*dir) is excluded too -- it's
     a guess from a naming convention, not a confirmed mapping. Both stay
     suggestion-only via suggest_import_for_name.
+
+    A dict hit alone is NOT sufficient, because some IMPORT_SUGGESTIONS
+    entries are written as guidance ("you probably want pandas") rather
+    than as a statement that resolves the name: "DataFrame" maps to
+    "import pandas as pd", which binds `pd` and leaves `DataFrame` just
+    as undefined as before. Those are fine as suggestions and wrong as
+    patches, so every candidate is verified to actually bind the name
+    before it can be auto-applied. This is a structural guard, not a
+    blacklist -- a future bad dict entry is caught the same way.
     """
+    candidate = None
+
     if name in IMPORT_SUGGESTIONS:
-        return IMPORT_SUGGESTIONS[name]
+        candidate = IMPORT_SUGGESTIONS[name]
+    elif name in MATH_FUNCTIONS:
+        # Guard against the data claiming a math member that isn't one:
+        # "from math import abs" is an ImportError, not a fix.
+        if not hasattr(math, name):
+            return None
+        candidate = f"from math import {name}"
 
-    if name in MATH_FUNCTIONS:
-        return f"from math import {name}"
+    if candidate is None:
+        return None
 
-    return None
+    if name not in names_bound_by(candidate):
+        return None
+
+    return candidate

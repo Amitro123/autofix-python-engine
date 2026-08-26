@@ -1,6 +1,7 @@
 """In-process adapter that exposes PythonFixer's deterministic handlers
 as a read-only, temp-file-scoped operation for the MCP server (Task 6)."""
 
+import ast
 import difflib
 import tempfile
 from dataclasses import dataclass
@@ -18,7 +19,11 @@ from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
 from autofix_core.shared.handlers.import_error_handler import ImportErrorHandler
 from autofix_core.shared.handlers.module_not_found_handler import ModuleNotFoundHandler
-from autofix_core.shared.import_suggestions import suggest_import_for_name, suggest_confident_import_for_name
+from autofix_core.shared.import_suggestions import (
+    names_bound_by,
+    suggest_confident_import_for_name,
+    suggest_import_for_name,
+)
 
 
 @dataclass
@@ -168,7 +173,15 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
         fixer = PythonFixer(config={"auto_install": False, "create_files": False, "quiet": True})
         fixed = fixer.fix_parsed_error(parsed)
 
-        if not fixed:
+        patched_code = Path(tmp_path).read_text(encoding="utf-8") if fixed else code
+
+        if not fixed or patched_code == code:
+            # patched_code == code means the handler reported success but
+            # left the file untouched (it treats "already imported" as
+            # success). An unchanged patch is not a fix, so fall through
+            # to the same guidance path as an outright failure rather
+            # than returning "fix" with an empty diff.
+            #
             # fixer.fix_parsed_error returning False for ImportError means
             # ImportErrorHandler.apply_fix ran but couldn't apply a patch --
             # not that it had nothing to say. apply_fix computes concrete
@@ -189,7 +202,6 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
                 )
             return FixResult(error_type=parsed.error_type, resolved_by="no_match")
 
-        patched_code = Path(tmp_path).read_text(encoding="utf-8")
         diff = "".join(
             difflib.unified_diff(
                 code.splitlines(keepends=True),
@@ -210,6 +222,14 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
         backup = Path(f"{tmp_path}{BACKUP_EXTENSION}")
         if backup.exists():
             backup.unlink()
+
+
+def _parses(code: str) -> bool:
+    try:
+        ast.parse(code)
+    except SyntaxError:
+        return False
+    return True
 
 
 def _run_name_error_fix_tier(code: str, parsed) -> Optional[FixResult]:
@@ -237,11 +257,21 @@ def _run_name_error_fix_tier(code: str, parsed) -> Optional[FixResult]:
     if not import_statement:
         return None
 
-    if import_statement in code:
+    already_bound = names_bound_by(code)
+    if name in already_bound:
         # Already imported and NameError still fired -- something else is
         # wrong (scope, shadowing, indentation). Re-applying the same
         # import would be a no-op patch that hides that; let the
         # suggestion-tier fallback surface guidance instead.
+        return None
+
+    if not already_bound and not _parses(code):
+        # names_bound_by returns an empty set both for "no imports" and
+        # for "didn't parse". Only the latter is a problem: if the code
+        # doesn't parse we can't verify the import isn't already present,
+        # and an unverifiable patch doesn't belong in a tier whose whole
+        # promise is that the caller needn't re-check it. Fall back to a
+        # suggestion instead.
         return None
 
     with tempfile.NamedTemporaryFile(
@@ -256,6 +286,12 @@ def _run_name_error_fix_tier(code: str, parsed) -> Optional[FixResult]:
             return None
 
         patched_code = Path(tmp_path).read_text(encoding="utf-8")
+        if patched_code == code:
+            # The handler reported success but nothing changed (it treats
+            # "already present" as success). An unchanged patch is not a
+            # fix -- returning one would hand the caller an empty diff
+            # under a result state that promises an applied change.
+            return None
         diff = "".join(
             difflib.unified_diff(
                 code.splitlines(keepends=True),

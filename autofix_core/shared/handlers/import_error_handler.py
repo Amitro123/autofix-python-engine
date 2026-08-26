@@ -13,14 +13,16 @@ from pathlib import Path
 try:
     from ..import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
-        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS,
+        names_bound_by
     )
     from ..helpers.logging_utils import get_logger  # ← .. במקום ...
     from ..constants import RegexPatterns, BACKUP_EXTENSION
 except ImportError:
     from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
-        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS,
+        names_bound_by
     )
     from autofix_core.shared.helpers.logging_utils import get_logger
     from autofix_core.shared.constants import RegexPatterns, BACKUP_EXTENSION
@@ -216,8 +218,15 @@ class ImportErrorHandler:
             
             content = self._read_file_content(script_path)
             
-            # Check if import already exists
-            if import_statement in content:
+            # Check if import already exists. Compare the names the
+            # statement actually binds against those the file already
+            # binds -- a plain substring test reports a false match for
+            # any statement that is a prefix of another ("import time"
+            # inside "import timeit"), and then returns success without
+            # having added anything, so the caller believes a fix was
+            # applied to a file that never changed.
+            wanted = names_bound_by(import_statement)
+            if wanted and wanted.issubset(names_bound_by(content)):
                 self.logger.info("Import already exists in file")
                 return True
             

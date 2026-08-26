@@ -38,6 +38,23 @@ def test_import_error_produces_a_fix():
     assert result.telemetry["estimated_tokens_saved"] > 0
 
 
+def test_import_error_never_reports_a_fix_that_changed_nothing():
+    # ImportErrorHandler.add_import_to_script treats "already present" as
+    # success, so the fix tier could report resolved_by="fix" with an
+    # empty diff and patched_code identical to the input -- a patch that
+    # promises an applied change and delivers none.
+    code = "import time\nfrom time import nonexistent_function\n"
+    error_message = (
+        "ImportError: cannot import name 'nonexistent_function' "
+        "from 'time' (unknown location)"
+    )
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by != "fix"
+    assert result.patched_code is None
+
+
 def test_unrecognized_error_type_is_no_match():
     code = "1 / 0\n"
     error_message = "TypeError: unsupported operand type(s)"
@@ -187,6 +204,48 @@ def test_name_error_with_heuristic_match_stays_a_suggestion():
     assert result.patched_code is None
     assert any("isfile" in s for s in result.suggestions)
     assert result.telemetry["estimated_tokens_saved"] == 0
+
+
+def test_name_error_does_not_fix_when_the_import_would_not_bind_the_name():
+    # IMPORT_SUGGESTIONS maps "DataFrame" -> "import pandas as pd", which
+    # binds `pd`, NOT `DataFrame`. Applying it leaves the NameError
+    # completely unresolved, so returning it as resolved_by="fix" would
+    # break the fix tier's core promise: a patch the caller can trust
+    # without re-checking. Only imports that actually bind the undefined
+    # name qualify.
+    code = "df = DataFrame({'a': [1]})\n"
+    error_message = "NameError: name 'DataFrame' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.patched_code is None
+
+
+def test_name_error_does_not_fix_a_math_name_that_does_not_exist():
+    # MATH_FUNCTIONS contains "abs", but math.abs does not exist (abs is a
+    # builtin). "from math import abs" raises ImportError at import time --
+    # applying it would turn a NameError into a hard, earlier failure.
+    code = "y = abs(-1)\n"
+    error_message = "NameError: name 'abs' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by != "fix"
+    assert result.patched_code is None
+
+
+def test_name_error_fix_is_not_skipped_by_a_substring_import_match():
+    # The already-present guard must not treat "import timeit" as already
+    # providing "import time" -- a substring check does, and silently
+    # downgrades a legitimate fix to a suggestion.
+    code = "import timeit\nprint(time.time())\n"
+    error_message = "NameError: name 'time' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "fix"
+    assert "import time\n" in result.patched_code
 
 
 def test_name_error_fix_skips_when_import_already_present():
