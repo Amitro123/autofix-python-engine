@@ -7,7 +7,7 @@ name = "autofix-python-engine"
 version = "2.2.3"
 description = "Automatic Python error detection and fixing"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [{name = "Amit Rosen"}]
 keywords = ["python", "error-fixing", "automation", "cli"]
 classifiers = [
@@ -15,10 +15,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
 ]
-dependencies = []
+dependencies = ["fastmcp>=2.0"]
 
 [project.scripts]
 autofix = "autofix.cli.autofix_cli_interactive:main"
+autofix-mcp-server = "autofix_core.infrastructure.mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Amitro123/autofix-python-engine"
