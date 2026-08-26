@@ -24,3 +24,26 @@ def test_unrecognized_error_type_is_no_match():
     assert result.resolved_by == "no_match"
     assert result.patched_code is None
     assert result.diff is None
+
+
+def test_index_error_produces_a_suggestion():
+    code = "items = [1, 2]\nprint(items[5])\n"
+    error_message = "IndexError: list index out of range"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.error_type == "IndexError"
+    assert result.suggestions
+    assert result.patched_code is None
+
+
+def test_name_error_produces_a_suggestion_with_the_actual_name():
+    code = "print(sqrt(4))\n"
+    error_message = "NameError: name 'sqrt' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.error_type == "NameError"
+    assert any("sqrt" in s or "math" in s for s in result.suggestions)
