@@ -17,8 +17,13 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+mcp = ["fastmcp>=3.0"]
+
 [project.scripts]
 autofix = "autofix.cli.autofix_cli_interactive:main"
+autofix-mcp-server = "autofix_core.infrastructure.mcp.server:main"
+autofix-mcp-report = "autofix_core.infrastructure.mcp.report:main"
 
 [project.urls]
 Homepage = "https://github.com/Amitro123/autofix-python-engine"
