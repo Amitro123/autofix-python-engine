@@ -121,7 +121,19 @@ class ErrorParser:
                 line_number=line_number,
                 suggested_fix="Add validation to ensure divisor is not zero"
             )
-        
+
+        if error_type == "NameError":
+            name_match = re.search(r"name '([^']+)' is not defined", error_message)
+            missing_function = name_match.group(1) if name_match else None
+
+            return ParsedError(
+                error_type="NameError",
+                error_message=error_message,
+                file_path=file_path,
+                line_number=line_number,
+                missing_function=missing_function
+            )
+
         # Default return for all other error types
         return ParsedError(
             error_type=error_type,
