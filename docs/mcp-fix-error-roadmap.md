@@ -31,6 +31,12 @@ Verified against `main` before writing this doc, not assumed:
 - Token-savings computation consolidated into one function
   (`telemetry.estimated_tokens_saved_for`), used by both `FixResult` and
   `log_fix_result`.
+- `NameError` on a name that resolves to exactly one confident import
+  (`IMPORT_SUGGESTIONS`/`MATH_FUNCTIONS` — e.g. `Counter`, `sqrt`) →
+  `"fix"` tier, with the dedupe guard against re-patching an import
+  that's already present. Ambiguous names (`MULTI_IMPORT_SUGGESTIONS`,
+  e.g. `dump`) and the `os.path` naming heuristic stay `"suggestion"` —
+  not confident enough to auto-apply.
 - `autofix-mcp-report` already breaks down calls by `(error_type,
   resolved_by)` and reports a fix-rate percentage — the raw material the
   "telemetry-driven roadmap" idea below needs already exists.
@@ -43,16 +49,6 @@ Verified against `main` before writing this doc, not assumed:
       may already work end-to-end — this task is "verify with a real
       multi-line traceback test, then document it," not necessarily new
       parsing code. If a gap turns up, fix it there.
-- [ ] **`NameError` on a name the engine can resolve to an import → `"fix"`
-      tier**, not `"suggestion"`. Today `_name_error_suggestions` in
-      `fix_error_adapter.py` returns text guidance even when the name is a
-      known import (`IMPORT_SUGGESTIONS`/`MATH_FUNCTIONS` hit) — in that
-      case the transform is exactly as deterministic as the existing
-      `ImportError` fix (add one import line), so making the agent write
-      the patch itself is unnecessary. Needs a guard: only auto-fix when
-      the code doesn't already contain that import (avoid a no-op/duplicate
-      patch), matching the dedupe check `ImportErrorHandler._add_import_to_script`
-      already does for the `ImportError` path.
 - [ ] **`AttributeError` known-pattern suggestions** (e.g. `plt.hold` and
       other patterns the CLI already special-cases). Needs: confirm
       whether a dedicated handler class exists for this or whether the

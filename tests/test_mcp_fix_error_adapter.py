@@ -38,6 +38,23 @@ def test_import_error_produces_a_fix():
     assert result.telemetry["estimated_tokens_saved"] > 0
 
 
+def test_import_error_never_reports_a_fix_that_changed_nothing():
+    # ImportErrorHandler.add_import_to_script treats "already present" as
+    # success, so the fix tier could report resolved_by="fix" with an
+    # empty diff and patched_code identical to the input -- a patch that
+    # promises an applied change and delivers none.
+    code = "import time\nfrom time import nonexistent_function\n"
+    error_message = (
+        "ImportError: cannot import name 'nonexistent_function' "
+        "from 'time' (unknown location)"
+    )
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by != "fix"
+    assert result.patched_code is None
+
+
 def test_unrecognized_error_type_is_no_match():
     code = "1 / 0\n"
     error_message = "TypeError: unsupported operand type(s)"
@@ -116,12 +133,130 @@ def test_file_not_found_error_produces_a_suggestion():
 
 
 def test_name_error_produces_a_suggestion_with_the_actual_name():
-    code = "print(sqrt(4))\n"
-    error_message = "NameError: name 'sqrt' is not defined"
+    # A name with no known import mapping at all -- neither IMPORT_SUGGESTIONS/
+    # MATH_FUNCTIONS (confident, now fix-tier) nor MULTI_IMPORT_SUGGESTIONS/the
+    # os.path heuristic (ambiguous, still suggestion-tier) -- so this stays a
+    # plain suggestion with generic guidance.
+    code = "print(totally_unrecognized_name())\n"
+    error_message = "NameError: name 'totally_unrecognized_name' is not defined"
 
     result = run_fix_error(code=code, error_message=error_message)
 
     assert result.resolved_by == "suggestion"
     assert result.error_type == "NameError"
-    assert any("sqrt" in s or "math" in s for s in result.suggestions)
+    assert any("totally_unrecognized_name" in s for s in result.suggestions)
+    assert result.patched_code is None
     assert result.telemetry["estimated_tokens_saved"] == 0
+
+
+def test_name_error_with_confident_dict_import_produces_a_fix():
+    code = "print(Counter([1, 1, 2]))\n"
+    error_message = "NameError: name 'Counter' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "fix"
+    assert result.error_type == "NameError"
+    assert result.patched_code is not None
+    assert "from collections import Counter" in result.patched_code
+    assert result.diff is not None
+    assert "+from collections import Counter" in result.diff
+    assert result.telemetry["estimated_tokens_saved"] > 0
+
+
+def test_name_error_with_confident_math_function_produces_a_fix():
+    code = "x = sqrt(4)\n"
+    error_message = "NameError: name 'sqrt' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "fix"
+    assert result.error_type == "NameError"
+    assert "from math import sqrt" in result.patched_code
+    assert result.telemetry["estimated_tokens_saved"] > 0
+
+
+def test_name_error_with_ambiguous_import_stays_a_suggestion():
+    # "dump" maps to json.dump or pickle.dump (MULTI_IMPORT_SUGGESTIONS) --
+    # not confident enough to auto-apply either one.
+    code = "dump(data, f)\n"
+    error_message = "NameError: name 'dump' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.patched_code is None
+    assert any("json" in s for s in result.suggestions)
+    assert any("pickle" in s for s in result.suggestions)
+    assert result.telemetry["estimated_tokens_saved"] == 0
+
+
+def test_name_error_with_heuristic_match_stays_a_suggestion():
+    # "isfile" only matches via the is*file naming heuristic, not a
+    # confirmed IMPORT_SUGGESTIONS/MATH_FUNCTIONS entry -- stays a guess,
+    # not an auto-applied fix.
+    code = "if isfile(path):\n    pass\n"
+    error_message = "NameError: name 'isfile' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.patched_code is None
+    assert any("isfile" in s for s in result.suggestions)
+    assert result.telemetry["estimated_tokens_saved"] == 0
+
+
+def test_name_error_does_not_fix_when_the_import_would_not_bind_the_name():
+    # IMPORT_SUGGESTIONS maps "DataFrame" -> "import pandas as pd", which
+    # binds `pd`, NOT `DataFrame`. Applying it leaves the NameError
+    # completely unresolved, so returning it as resolved_by="fix" would
+    # break the fix tier's core promise: a patch the caller can trust
+    # without re-checking. Only imports that actually bind the undefined
+    # name qualify.
+    code = "df = DataFrame({'a': [1]})\n"
+    error_message = "NameError: name 'DataFrame' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.patched_code is None
+
+
+def test_name_error_does_not_fix_a_math_name_that_does_not_exist():
+    # MATH_FUNCTIONS contains "abs", but math.abs does not exist (abs is a
+    # builtin). "from math import abs" raises ImportError at import time --
+    # applying it would turn a NameError into a hard, earlier failure.
+    code = "y = abs(-1)\n"
+    error_message = "NameError: name 'abs' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by != "fix"
+    assert result.patched_code is None
+
+
+def test_name_error_fix_is_not_skipped_by_a_substring_import_match():
+    # The already-present guard must not treat "import timeit" as already
+    # providing "import time" -- a substring check does, and silently
+    # downgrades a legitimate fix to a suggestion.
+    code = "import timeit\nprint(time.time())\n"
+    error_message = "NameError: name 'time' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "fix"
+    assert "import time\n" in result.patched_code
+
+
+def test_name_error_fix_skips_when_import_already_present():
+    # The import is already there and NameError still fired somehow (e.g.
+    # a contrived/stale report) -- applying it "again" would be a no-op
+    # patch that hides whatever the real problem is. Must fall back to a
+    # suggestion, not silently claim a fix that changes nothing.
+    code = "from math import sqrt\nx = sqrt(4)\n"
+    error_message = "NameError: name 'sqrt' is not defined"
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.patched_code is None

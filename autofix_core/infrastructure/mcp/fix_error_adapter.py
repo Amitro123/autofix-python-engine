@@ -1,6 +1,7 @@
 """In-process adapter that exposes PythonFixer's deterministic handlers
 as a read-only, temp-file-scoped operation for the MCP server (Task 6)."""
 
+import ast
 import difflib
 import tempfile
 from dataclasses import dataclass
@@ -18,7 +19,11 @@ from autofix_core.shared.handlers.value_error_handler import ValueErrorHandler
 from autofix_core.shared.handlers.file_not_found_handler import FileNotFoundHandler
 from autofix_core.shared.handlers.import_error_handler import ImportErrorHandler
 from autofix_core.shared.handlers.module_not_found_handler import ModuleNotFoundHandler
-from autofix_core.shared.import_suggestions import suggest_import_for_name
+from autofix_core.shared.import_suggestions import (
+    names_bound_by,
+    suggest_confident_import_for_name,
+    suggest_import_for_name,
+)
 
 
 @dataclass
@@ -84,6 +89,9 @@ def run_fix_error(code: str, error_message: str, file_path: Optional[str] = None
         return _run_fix_tier(code, parsed)
 
     if error_type == ErrorType.NAME_ERROR:
+        fix_result = _run_name_error_fix_tier(code, parsed)
+        if fix_result is not None:
+            return fix_result
         return FixResult(
             error_type=parsed.error_type,
             resolved_by="suggestion",
@@ -165,7 +173,15 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
         fixer = PythonFixer(config={"auto_install": False, "create_files": False, "quiet": True})
         fixed = fixer.fix_parsed_error(parsed)
 
-        if not fixed:
+        patched_code = Path(tmp_path).read_text(encoding="utf-8") if fixed else code
+
+        if not fixed or patched_code == code:
+            # patched_code == code means the handler reported success but
+            # left the file untouched (it treats "already imported" as
+            # success). An unchanged patch is not a fix, so fall through
+            # to the same guidance path as an outright failure rather
+            # than returning "fix" with an empty diff.
+            #
             # fixer.fix_parsed_error returning False for ImportError means
             # ImportErrorHandler.apply_fix ran but couldn't apply a patch --
             # not that it had nothing to say. apply_fix computes concrete
@@ -186,7 +202,96 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
                 )
             return FixResult(error_type=parsed.error_type, resolved_by="no_match")
 
+        diff = "".join(
+            difflib.unified_diff(
+                code.splitlines(keepends=True),
+                patched_code.splitlines(keepends=True),
+                fromfile="original",
+                tofile="patched",
+            )
+        )
+        return FixResult(
+            error_type=parsed.error_type,
+            resolved_by="fix",
+            patched_code=patched_code,
+            diff=diff,
+            explanation=f"Applied deterministic fix for {parsed.error_type}",
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+        backup = Path(f"{tmp_path}{BACKUP_EXTENSION}")
+        if backup.exists():
+            backup.unlink()
+
+
+def _parses(code: str) -> bool:
+    try:
+        ast.parse(code)
+    except SyntaxError:
+        return False
+    return True
+
+
+def _run_name_error_fix_tier(code: str, parsed) -> Optional[FixResult]:
+    """Promote a NameError to the fix tier when the undefined name maps to
+    exactly one high-confidence import (an IMPORT_SUGGESTIONS/MATH_FUNCTIONS
+    dict hit -- see suggest_confident_import_for_name) that isn't already
+    present in the code. Returns None whenever a confident fix can't be
+    produced; the caller then falls back to the existing suggestion tier
+    rather than this function ever guessing.
+
+    Deliberately does not go through PythonFixer.fix_parsed_error the way
+    _run_fix_tier does for ImportError: the CLI's own NameError handler
+    (_fix_name_error in python_fixer.py) is print()-only and not
+    quiet-mode-audited, so routing through it would reopen the exact
+    stdout/JSON-RPC corruption bug _run_fix_tier's assert exists to guard
+    against. Calling ImportErrorHandler.add_import_to_script directly on a
+    temp file sidesteps that -- it's the same audited, quiet-safe primitive
+    the ImportError fix tier ultimately relies on too.
+    """
+    name = parsed.missing_function
+    if not name:
+        return None
+
+    import_statement = suggest_confident_import_for_name(name)
+    if not import_statement:
+        return None
+
+    already_bound = names_bound_by(code)
+    if name in already_bound:
+        # Already imported and NameError still fired -- something else is
+        # wrong (scope, shadowing, indentation). Re-applying the same
+        # import would be a no-op patch that hides that; let the
+        # suggestion-tier fallback surface guidance instead.
+        return None
+
+    if not already_bound and not _parses(code):
+        # names_bound_by returns an empty set both for "no imports" and
+        # for "didn't parse". Only the latter is a problem: if the code
+        # doesn't parse we can't verify the import isn't already present,
+        # and an unverifiable patch doesn't belong in a tier whose whole
+        # promise is that the caller needn't re-check it. Fall back to a
+        # suggestion instead.
+        return None
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp.write(code)
+        tmp_path = tmp.name
+
+    try:
+        handler = ImportErrorHandler(quiet=True)
+        if not handler.add_import_to_script(import_statement, tmp_path):
+            return None
+
         patched_code = Path(tmp_path).read_text(encoding="utf-8")
+        if patched_code == code:
+            # The handler reported success but nothing changed (it treats
+            # "already present" as success). An unchanged patch is not a
+            # fix -- returning one would hand the caller an empty diff
+            # under a result state that promises an applied change.
+            return None
         diff = "".join(
             difflib.unified_diff(
                 code.splitlines(keepends=True),

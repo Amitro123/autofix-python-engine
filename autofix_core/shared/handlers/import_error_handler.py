@@ -13,14 +13,16 @@ from pathlib import Path
 try:
     from ..import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
-        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS,
+        names_bound_by
     )
     from ..helpers.logging_utils import get_logger  # ← .. במקום ...
     from ..constants import RegexPatterns, BACKUP_EXTENSION
 except ImportError:
     from autofix_core.shared.import_suggestions import (
         IMPORT_SUGGESTIONS, STDLIB_MODULES, KNOWN_PIP_PACKAGES,
-        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS
+        MODULE_TO_PACKAGE, MULTI_IMPORT_SUGGESTIONS, MATH_FUNCTIONS,
+        names_bound_by
     )
     from autofix_core.shared.helpers.logging_utils import get_logger
     from autofix_core.shared.constants import RegexPatterns, BACKUP_EXTENSION
@@ -151,7 +153,7 @@ class ImportErrorHandler:
             import_statement = self.import_suggestions[missing_module]
             self.logger.info(f"Found import suggestion for '{missing_module}': {import_statement}")
 
-            if self._add_import_to_script(import_statement, file_path):
+            if self.add_import_to_script(import_statement, file_path):
                 self._print(f"\n✅ Successfully added import: {import_statement}")
                 return True
             else:
@@ -185,8 +187,15 @@ class ImportErrorHandler:
         """Read file content with UTF-8 encoding"""
         return Path(file_path).read_text(encoding="utf-8")
 
-    def _add_import_to_script(self, import_statement: str, script_path: str) -> bool:
-        """Add an import statement to the script"""
+    def add_import_to_script(self, import_statement: str, script_path: str) -> bool:
+        """Add an import statement to the script.
+
+        Public: this is the reusable "insert an import line into a file"
+        primitive, not just an apply_fix implementation detail -- the MCP
+        adapter's NameError fix tier (fix_error_adapter.py) calls it
+        directly for names that resolve to a confident single import but
+        don't go through apply_fix's own missing_module-keyed dispatch.
+        """
         if self.dry_run:
             self.logger.info(f"[DRY RUN] Would add import: {import_statement}")
             return True
@@ -209,8 +218,15 @@ class ImportErrorHandler:
             
             content = self._read_file_content(script_path)
             
-            # Check if import already exists
-            if import_statement in content:
+            # Check if import already exists. Compare the names the
+            # statement actually binds against those the file already
+            # binds -- a plain substring test reports a false match for
+            # any statement that is a prefix of another ("import time"
+            # inside "import timeit"), and then returns success without
+            # having added anything, so the caller believes a fix was
+            # applied to a file that never changed.
+            wanted = names_bound_by(import_statement)
+            if wanted and wanted.issubset(names_bound_by(content)):
                 self.logger.info("Import already exists in file")
                 return True
             

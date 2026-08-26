@@ -903,8 +903,10 @@ Current coverage:
 |---|---|
 | `ImportError` — auto-importable name | `"fix"` (patch + diff) |
 | `ImportError` — recognized but not auto-importable | `"suggestion"` |
+| `NameError` — name resolves to exactly one confident import (stdlib/math) | `"fix"` (patch + diff) |
+| `NameError` — ambiguous (e.g. `dump`) or only a naming-convention guess | `"suggestion"` |
 | `ModuleNotFoundError` | `"suggestion"` (`pip install <pkg>` or create-locally guidance — never installs anything itself) |
-| `IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError`, `NameError` | `"suggestion"` |
+| `IndexError`, `KeyError`, `ZeroDivisionError`, `ValueError`, `FileNotFoundError` | `"suggestion"` |
 | Everything else | `"no_match"` |
 
 `ModuleNotFoundError` is deliberately never a `"fix"` — its real fix in this

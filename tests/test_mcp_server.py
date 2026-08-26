@@ -28,6 +28,26 @@ def test_fix_error_tool_returns_a_fix_for_import_error():
     assert payload["telemetry"]["estimated_tokens_saved"] > 0
 
 
+def test_fix_error_tool_returns_a_fix_for_a_confident_name_error():
+    async def _run():
+        async with Client(mcp) as client:
+            return await client.call_tool(
+                "fix_error",
+                {
+                    "code": "print(Counter([1, 1, 2]))\n",
+                    "error_message": "NameError: name 'Counter' is not defined",
+                },
+            )
+
+    result = asyncio.run(_run())
+    payload = result.data if hasattr(result, "data") else result
+
+    assert payload["resolved_by"] == "fix"
+    assert payload["error_type"] == "NameError"
+    assert "from collections import Counter" in payload["patched_code"]
+    assert payload["telemetry"]["estimated_tokens_saved"] > 0
+
+
 def test_fix_error_tool_returns_no_match_for_unhandled_error():
     async def _run():
         async with Client(mcp) as client:
