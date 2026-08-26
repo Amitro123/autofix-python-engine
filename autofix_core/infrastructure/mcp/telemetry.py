@@ -13,11 +13,39 @@ full patch plausibly avoids that whole round trip; "suggestion" and
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-ASSUMED_TOKENS_PER_FIX = int(os.environ.get("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", "500"))
+_DEFAULT_ASSUMED_TOKENS_PER_FIX = 500
+
+
+def _read_assumed_tokens_per_fix() -> int:
+    """Parse AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX defensively.
+
+    This runs at import time (server.py imports the adapter, which imports
+    this module), so an unguarded int() here would make the whole MCP
+    server fail to start on a single env-var typo -- turning a best-effort
+    metric into a startup failure. Warn on stderr (never stdout: this
+    module is imported by the MCP server, and stdout is reserved for the
+    stdio JSON-RPC transport) and fall back to the default instead.
+    """
+    raw = os.environ.get("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX")
+    if raw is None:
+        return _DEFAULT_ASSUMED_TOKENS_PER_FIX
+    try:
+        return int(raw)
+    except ValueError:
+        print(
+            f"autofix-mcp: AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX={raw!r} is not a valid "
+            f"integer; falling back to {_DEFAULT_ASSUMED_TOKENS_PER_FIX}",
+            file=sys.stderr,
+        )
+        return _DEFAULT_ASSUMED_TOKENS_PER_FIX
+
+
+ASSUMED_TOKENS_PER_FIX = _read_assumed_tokens_per_fix()
 
 DEFAULT_LOG_PATH = Path(
     os.environ.get("AUTOFIX_MCP_TELEMETRY_PATH", str(Path.home() / ".autofix" / "mcp_telemetry.jsonl"))

@@ -314,7 +314,7 @@ class PythonFixer:
     def _fix_import_error(self, error: ParsedError) -> bool:
         """Handle ImportError - delegate to ImportErrorHandler"""
 
-        handler = ImportErrorHandler()
+        handler = ImportErrorHandler(quiet=self.config.get("quiet", False))
         _, _, details = handler.analyze_error(error.error_message, error.file_path)
         details['error_message'] = error.error_message
         

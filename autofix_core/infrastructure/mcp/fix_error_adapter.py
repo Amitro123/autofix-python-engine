@@ -1,9 +1,7 @@
 """In-process adapter that exposes PythonFixer's deterministic handlers
 as a read-only, temp-file-scoped operation for the MCP server (Task 6)."""
 
-import contextlib
 import difflib
-import io
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -104,15 +102,22 @@ def _run_fix_tier(code: str, parsed) -> FixResult:
 
     try:
         parsed.file_path = tmp_path
-        fixer = PythonFixer(config={"auto_install": False, "create_files": False})
-        # ImportErrorHandler.apply_fix (invoked deep inside fix_parsed_error)
-        # does bare print() on every branch. Under mcp.run() those prints
-        # would land on the real stdout fd -- the exact stream the stdio
-        # transport uses for JSON-RPC -- corrupting the protocol. Redirect
-        # and discard them here; this is adapter-side only, the shared
-        # handler is untouched since the CLI still relies on those prints.
-        with contextlib.redirect_stdout(io.StringIO()):
-            fixed = fixer.fix_parsed_error(parsed)
+        # quiet=True: ImportErrorHandler.apply_fix (invoked deep inside
+        # fix_parsed_error) would otherwise print() on every branch. Under
+        # mcp.run() those prints would land on the real stdout fd -- the
+        # exact stream the stdio transport uses for JSON-RPC -- corrupting
+        # the protocol. This used to be handled with
+        # contextlib.redirect_stdout, but that mutates sys.stdout
+        # process-globally and is not safe under concurrent calls: two
+        # overlapping redirect_stdout windows on different threads can
+        # restore each other's saved stream on exit, leaking output into
+        # the wrong place or swallowing an unrelated response. quiet=True
+        # avoids the problem at the source instead -- the handler never
+        # writes to stdout in the first place, so there is nothing to
+        # redirect. The shared handler still defaults to quiet=False, so
+        # the CLI's print-based UX is unaffected.
+        fixer = PythonFixer(config={"auto_install": False, "create_files": False, "quiet": True})
+        fixed = fixer.fix_parsed_error(parsed)
 
         if not fixed:
             return FixResult(error_type=parsed.error_type, resolved_by="no_match")
