@@ -1,6 +1,8 @@
+import importlib
 import json
 
 from autofix_core.infrastructure.mcp.fix_error_adapter import FixResult
+from autofix_core.infrastructure.mcp import telemetry
 from autofix_core.infrastructure.mcp.telemetry import log_fix_result
 
 
@@ -54,3 +56,42 @@ def test_log_fix_result_never_raises_when_path_is_unwritable(tmp_path):
         input_chars=1,
         log_path=log_path,
     )
+
+
+def test_read_assumed_tokens_per_fix_uses_default_when_unset(monkeypatch):
+    monkeypatch.delenv("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", raising=False)
+    assert telemetry._read_assumed_tokens_per_fix() == 500
+
+
+def test_read_assumed_tokens_per_fix_parses_a_valid_value(monkeypatch):
+    monkeypatch.setenv("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", "1200")
+    assert telemetry._read_assumed_tokens_per_fix() == 1200
+
+
+def test_read_assumed_tokens_per_fix_falls_back_on_garbage_instead_of_raising(monkeypatch, capsys):
+    monkeypatch.setenv("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", "not-an-integer")
+
+    result = telemetry._read_assumed_tokens_per_fix()
+
+    assert result == 500
+    captured = capsys.readouterr()
+    assert captured.out == ""  # never stdout -- would corrupt the MCP stdio stream
+    assert "not-an-integer" in captured.err
+    assert "500" in captured.err
+
+
+def test_module_import_does_not_crash_on_a_malformed_env_var(monkeypatch, capsys):
+    # This is the actual regression: before the fix, a bad env var made
+    # `import autofix_core.infrastructure.mcp.telemetry` (and therefore
+    # importing the whole MCP server) raise ValueError at import time.
+    monkeypatch.setenv("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", "not-an-integer")
+    try:
+        reloaded = importlib.reload(telemetry)
+        assert reloaded.ASSUMED_TOKENS_PER_FIX == 500
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "not-an-integer" in captured.err
+    finally:
+        # Restore the module-level constant other tests in this file rely on.
+        monkeypatch.delenv("AUTOFIX_MCP_ASSUMED_TOKENS_PER_FIX", raising=False)
+        importlib.reload(telemetry)

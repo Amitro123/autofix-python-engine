@@ -5,6 +5,28 @@ from pathlib import Path
 from autofix_core.infrastructure.mcp.telemetry import ASSUMED_TOKENS_PER_FIX, DEFAULT_LOG_PATH
 
 
+def _is_valid_record(record) -> bool:
+    """A telemetry record is only usable if it has the fields this report
+    aggregates over, with the right types. A line can be valid JSON and
+    still be an unusable record -- e.g. from an older schema version, a
+    manually edited line, or a non-object JSON value (a bare string or
+    list) -- and json.loads succeeding on its own doesn't guard against
+    that. Treat any such record the same as a malformed line: skip it and
+    count it, rather than crashing on a KeyError deep in aggregation."""
+    if not isinstance(record, dict):
+        return False
+    if not isinstance(record.get("error_type"), str):
+        return False
+    if not isinstance(record.get("resolved_by"), str):
+        return False
+    # bool is technically an int subclass in Python; exclude it explicitly
+    # so a stray `true`/`false` in this field doesn't silently pass.
+    tokens = record.get("estimated_tokens_saved")
+    if not isinstance(tokens, int) or isinstance(tokens, bool):
+        return False
+    return True
+
+
 def format_report(log_path: Path) -> str:
     if not log_path.exists():
         return "Total calls: 0 (no telemetry recorded yet at {})".format(log_path)
@@ -14,9 +36,14 @@ def format_report(log_path: Path) -> str:
     skipped = 0
     for line in raw_lines:
         try:
-            records.append(json.loads(line))
+            record = json.loads(line)
         except json.JSONDecodeError:
             skipped += 1
+            continue
+        if not _is_valid_record(record):
+            skipped += 1
+            continue
+        records.append(record)
 
     total = len(records)
 

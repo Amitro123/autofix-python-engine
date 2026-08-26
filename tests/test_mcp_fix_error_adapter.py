@@ -1,6 +1,28 @@
 from autofix_core.infrastructure.mcp.fix_error_adapter import run_fix_error
 
 
+def test_import_error_with_no_auto_fix_available_downgrades_to_a_suggestion():
+    # 'flask' is a known pip package (KNOWN_PIP_PACKAGES) but is not one of
+    # the small set of names ImportErrorHandler can auto-add an import
+    # statement for (IMPORT_SUGGESTIONS), so fix_parsed_error returns False
+    # here -- but the handler still knows exactly what to suggest. Before
+    # the fix this silently became resolved_by="no_match" with nothing
+    # returned, discarding guidance the handler had already computed.
+    code = "from flask import something_that_does_not_exist\n"
+    error_message = (
+        "ImportError: cannot import name 'something_that_does_not_exist' "
+        "from 'flask' (unknown location)"
+    )
+
+    result = run_fix_error(code=code, error_message=error_message)
+
+    assert result.resolved_by == "suggestion"
+    assert result.error_type == "ImportError"
+    assert result.suggestions
+    assert any("pip install flask" in s for s in result.suggestions)
+    assert result.patched_code is None
+
+
 def test_import_error_produces_a_fix():
     code = "from time import nonexistent_function\n"
     error_message = "ImportError: cannot import name 'nonexistent_function' from 'time' (unknown location)"

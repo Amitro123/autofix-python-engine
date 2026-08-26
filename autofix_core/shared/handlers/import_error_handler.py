@@ -28,15 +28,31 @@ except ImportError:
 class ImportErrorHandler:
     """Handle ImportError - missing imports and package resolution"""
     
-    def __init__(self, dry_run: bool = False):
+    def __init__(self, dry_run: bool = False, quiet: bool = False):
         self.logger = get_logger("import_error_handler")
         self.dry_run = dry_run
+        self.quiet = quiet
         self.import_suggestions = IMPORT_SUGGESTIONS
         self.stdlib_modules = STDLIB_MODULES
         self.known_pip_packages = KNOWN_PIP_PACKAGES
         self.module_to_package = MODULE_TO_PACKAGE
         self.multi_import_suggestions = MULTI_IMPORT_SUGGESTIONS
         self.math_functions = MATH_FUNCTIONS
+
+    def _print(self, message: str) -> None:
+        """Print a human-facing progress message, unless running quiet.
+
+        Callers that share this process's real stdout with something
+        else (e.g. an MCP server's stdio JSON-RPC transport) must be able
+        to suppress these without touching global state like
+        contextlib.redirect_stdout, which is not concurrency-safe: two
+        overlapping redirect_stdout windows in different threads can
+        restore each other's saved stream on exit, leaking output into
+        the wrong place or losing it. quiet=True avoids that entirely by
+        never writing to stdout in the first place.
+        """
+        if not self.quiet:
+            print(message)
     
     def analyze_error(self, error_message: str, file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
         """
@@ -112,48 +128,48 @@ class ImportErrorHandler:
         error_message = details.get('error_message', '')
 
         if not missing_module:
-            print("\nImportError detected but could not determine missing module")
+            self._print("\nImportError detected but could not determine missing module")
             return False
 
-        print(f"\nImportError detected in {file_path}")
-        print(f"Missing module: '{missing_module}'")
+        self._print(f"\nImportError detected in {file_path}")
+        self._print(f"Missing module: '{missing_module}'")
 
         # Check if it's a relative import issue
         if "attempted relative import" in error_message.lower():
-            print("\nRelative import error - cannot auto-fix")
-            print("Suggestions:")
-            print("  1. Use absolute imports instead")
-            print("  2. Ensure proper package structure with __init__.py")
-            print("  3. Run as module: python -m package.module")
-            print("\nImportError requires manual intervention - PARTIAL result")
+            self._print("\nRelative import error - cannot auto-fix")
+            self._print("Suggestions:")
+            self._print("  1. Use absolute imports instead")
+            self._print("  2. Ensure proper package structure with __init__.py")
+            self._print("  3. Run as module: python -m package.module")
+            self._print("\nImportError requires manual intervention - PARTIAL result")
             return False
 
         # Try to add the import automatically
         if missing_module in self.import_suggestions:
             import_statement = self.import_suggestions[missing_module]
             self.logger.info(f"Found import suggestion for '{missing_module}': {import_statement}")
-            
+
             if self._add_import_to_script(import_statement, file_path):
-                print(f"\n✅ Successfully added import: {import_statement}")
+                self._print(f"\n✅ Successfully added import: {import_statement}")
                 return True
             else:
-                print(f"\n❌ Failed to add import automatically")
+                self._print(f"\n❌ Failed to add import automatically")
                 return False
 
         # Manual suggestions if no auto-fix available
-        print("\nCould not auto-fix - manual suggestions:")
+        self._print("\nCould not auto-fix - manual suggestions:")
 
         if missing_module in self.known_pip_packages:
             package_name = self.module_to_package.get(missing_module, missing_module)
-            print(f"  1. Install package: pip install {package_name}")
+            self._print(f"  1. Install package: pip install {package_name}")
         else:
-            print(f"  1. Install package: pip install {missing_module}")
+            self._print(f"  1. Install package: pip install {missing_module}")
 
-        print(f"  2. Create local module: {missing_module}.py")
-        print(f"  3. Check import statement spelling")
-        print(f"  4. Verify package name and availability")
+        self._print(f"  2. Create local module: {missing_module}.py")
+        self._print(f"  3. Check import statement spelling")
+        self._print(f"  4. Verify package name and availability")
 
-        print("\nImportError requires manual installation - PARTIAL result")
+        self._print("\nImportError requires manual installation - PARTIAL result")
         return False
 
     
